@@ -1,0 +1,8 @@
+{
+    "title": "summary with required key information (omission test)",
+    "expectedFormat": "json",
+    "assertionMode": "loose",
+    "priority": "high",
+    "changePolicy": "low-drift",
+    "tags": ["summary", "json", "omission"]
+}

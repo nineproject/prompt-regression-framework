@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["evalId", "runId", "caseId", "verdict", "evaluatedAt"],
+  "properties": {
+    "evalId": {
+      "type": "string",
+      "pattern": "^EV_"
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^RUN_"
+    },
+    "caseId": {
+      "type": "string",
+      "pattern": "^TC-\\d{4}$"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["PASS", "FAIL", "REVIEW", "WAIVED", "BLOCKED"]
+    },
+    "reviewer": {
+      "type": "string"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checks": {
+      "type": "object",
+      "properties": {
+        "formatOk": { "type": "boolean" },
+        "jsonParsable": { "type": "boolean" },
+        "requiredKeysPresent": { "type": "boolean" },
+        "lengthAcceptable": { "type": "boolean" },
+        "safetyConcern": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

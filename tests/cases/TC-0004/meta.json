@@ -1,0 +1,8 @@
+{
+  "title": "brief summary with wording variance",
+  "expectedFormat": "text",
+  "assertionMode": "loose",
+  "priority": "medium",
+  "changePolicy": "flexible",
+  "tags": ["summary", "text", "loose"]
+}

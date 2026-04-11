@@ -1,0 +1,8 @@
+{
+    "title": "two-sentence json summary with content selection variance",
+    "expectedFormat": "json",
+    "assertionMode": "loose",
+    "priority": "medium",
+    "changePolicy": "flexible",
+    "tags": ["summary", "json", "loose"]
+}

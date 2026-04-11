@@ -1,0 +1,8 @@
+{
+    "title": "single sentence text summary",
+    "expectedFormat": "text",
+    "assertionMode": "strict",
+    "priority": "medium",
+    "changePolicy": "low-drift",
+    "tags": ["summary", "text"]
+  }

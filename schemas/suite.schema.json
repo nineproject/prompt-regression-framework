@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["id", "title", "caseIds"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^TS-[A-Z0-9-]+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "caseIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^TC-\\d{4}$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["smoke", "normal", "critical", "impact"]
+    }
+  },
+  "additionalProperties": false
+}

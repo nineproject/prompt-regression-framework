@@ -1,0 +1,8 @@
+{
+    "title": "format and content mixed deviation",
+    "expectedFormat": "json",
+    "assertionMode": "strict",
+    "priority": "high",
+    "changePolicy": "low-drift",
+    "tags": ["summary", "json", "format", "mixed"]
+}

@@ -1,0 +1,8 @@
+{
+  "title": "minimal summary case",
+  "expectedFormat": "json",
+  "assertionMode": "strict",
+  "priority": "high",
+  "changePolicy": "low-drift",
+  "tags": ["summary", "format"]
+}

@@ -1,0 +1,8 @@
+{
+  "title": "strict json only response",
+  "expectedFormat": "json",
+  "assertionMode": "strict",
+  "priority": "high",
+  "changePolicy": "low-drift",
+  "tags": ["format", "json", "strict"]
+}

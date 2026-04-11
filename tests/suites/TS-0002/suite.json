@@ -1,0 +1,5 @@
+{
+    "id": "TS-0002",
+    "title": "Evaluation stress suite",
+    "caseIds": ["TC-0003", "TC-0004"]
+  }
