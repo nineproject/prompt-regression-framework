@@ -50,6 +50,10 @@ flowchart TD
 
 ---
 
+## Included sample prompts
+
+This repository includes minimal sample prompts so that the default example suite can run immediately after clone.
+
 ## ⚡ Daily Usage
 
 ### 1. Run dev-loop
