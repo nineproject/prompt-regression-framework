@@ -749,6 +749,14 @@ else {
     foreach ($item in $sortedLatestItems) {
         $severityText = Get-StringOrDefault $item.Severity "N/A"
         $reasonText = ""
+        $isInitialBaselineReview = [bool]$item.InitialBaselineReview
+
+        if ($isInitialBaselineReview) {
+            $lines.Add("$($item.CaseId) : REVIEW | Initial baseline review candidate | Run=$($item.RunId)")
+            $lines.Add("  Next action: review candidate output and promote baseline if accepted")
+            $lines.Add("  Command    : ./scripts/promote-baseline.ps1 -RunId $($item.RunId)")
+            continue
+        }
 
         if ((Get-Count $item.Reasons) -gt 0) {
             $reasonText = (@($item.Reasons) -join "; ")
