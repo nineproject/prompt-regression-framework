@@ -54,6 +54,16 @@ flowchart TD
 
 This repository includes minimal sample prompts so that the default example suite can run immediately after clone.
 
+## First run note
+
+On the very first accepted run, create the initial baseline with:
+
+```powershell
+./scripts/promote-baseline.ps1 -RunId RUN_xxx
+```
+
+Comparison starts from the second approved run onward.
+
 ## ⚡ Daily Usage
 
 ### 1. Run dev-loop
