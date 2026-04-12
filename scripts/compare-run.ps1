@@ -16,6 +16,24 @@ trap {
 $OutputEncoding = [System.Text.Encoding]::UTF8
 chcp 65001 > $null
 
+function Write-Utf8BomFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Content
+    )
+
+    $directory = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path $directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
+    $utf8Bom = New-Object System.Text.UTF8Encoding($true)
+    [System.IO.File]::WriteAllText($Path, $Content, $utf8Bom)
+}
+
 function Read-JsonFile {
     param(
         [Parameter(Mandatory = $true)]
@@ -250,7 +268,7 @@ function Get-BaselineRunId {
         }
     }
 
-    throw "Baseline run id field not found in baseline file: $BaselinePath"
+    return $null
 }
 
 function Get-JsonSummarySafe {
@@ -590,10 +608,87 @@ function Get-ItemCountSafe {
     return $count
 }
 
+function New-NotComparableCompareResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CaseId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CandidateRunId,
+
+        [AllowNull()]
+        [string]$BaselineRunId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CompareStatus,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Reason,
+
+        [AllowNull()]
+        $CasePolicy
+    )
+
+    return [ordered]@{
+        caseId                   = $CaseId
+        baselineRunId            = $BaselineRunId
+        candidateRunId           = $CandidateRunId
+
+        compareStatus            = $CompareStatus
+        comparable               = $false
+        notComparableReason      = $Reason
+
+        formatMatch              = $null
+        rawDiffDetected          = $null
+        normalizedDiffDetected   = $null
+        severityHint             = "N/A"
+
+        casePolicy               = $CasePolicy
+
+        possibleOmissionDetected = $null
+        diffSignals              = $null
+        omissionSignals          = $null
+        summarySignals           = $null
+
+        reviewHints              = @(
+            "comparison could not be performed",
+            "review candidate output manually",
+            "promote as baseline if approved"
+        )
+    }
+}
+
+function Save-CompareResultAndReturn {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RunDir,
+
+        [Parameter(Mandatory = $true)]
+        $CompareResult
+    )
+
+    $comparePath = Join-Path $RunDir "compare.json"
+    $compareJson = $CompareResult | ConvertTo-Json -Depth 10
+    Write-Utf8BomFile -Path $comparePath -Content $compareJson
+
+    Write-Host ""
+    Write-Host "===== COMPARE SUMMARY ====="
+    Write-Host "Case           : $($CompareResult.caseId)"
+    Write-Host "Baseline Run   : $(if ($CompareResult.baselineRunId) { $CompareResult.baselineRunId } else { '(missing)' })"
+    Write-Host "Candidate Run  : $($CompareResult.candidateRunId)"
+    Write-Host "Comparable     : $($CompareResult.comparable)"
+    Write-Host "Status         : $($CompareResult.compareStatus)"
+    Write-Host "Reason         : $($CompareResult.notComparableReason)"
+    Write-Host "Next Step      : review candidate output and promote baseline if approved"
+    Write-Host ""
+    Write-Host "Saved compare artifact: $comparePath"
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 $candidateRunId = $RunId
 $candidateRunDir = Join-Path $repoRoot ("runs\" + $candidateRunId)
+$runDir = $candidateRunDir
 
 if (!(Test-Path -LiteralPath $candidateRunDir)) {
     throw "Candidate run directory not found: $candidateRunDir"
@@ -610,23 +705,56 @@ $candidateMeta = Read-JsonFile -Path $candidateMetaPath
 
 $caseId = Get-CaseIdFromManifest -Manifest $candidateManifest
 
+$casePolicy = New-CasePolicy -Meta $candidateMeta
+
 $baselinePath = Join-Path (Join-Path $repoRoot "tests\baselines") ("{0}.json" -f $caseId)
-if (!(Test-Path -LiteralPath $baselinePath)) {
-    throw "Baseline file not found: $baselinePath"
+
+if (!(Test-Path $baselinePath)) {
+    $compareResult = New-NotComparableCompareResult `
+        -CaseId $caseId `
+        -CandidateRunId $RunId `
+        -BaselineRunId $null `
+        -CompareStatus "BASELINE_MISSING" `
+        -Reason "baseline file not found: $baselinePath" `
+        -CasePolicy $casePolicy
+
+    Save-CompareResultAndReturn -RunDir $runDir -CompareResult $compareResult
+    return
 }
 
 $baselineInfo = Read-JsonFile -Path $baselinePath
 $baselineRunId = Get-BaselineRunId -BaselineInfo $baselineInfo -BaselinePath $baselinePath
 
+if ([string]::IsNullOrWhiteSpace($baselineRunId)) {
+    $compareResult = New-NotComparableCompareResult `
+        -CaseId $caseId `
+        -CandidateRunId $RunId `
+        -BaselineRunId $null `
+        -CompareStatus "BASELINE_UNREADABLE" `
+        -Reason "baseline run id field not found in baseline file: $baselinePath" `
+        -CasePolicy $casePolicy
+
+    Save-CompareResultAndReturn -RunDir $runDir -CompareResult $compareResult
+    return
+}
+
 $baselineRunDir = Join-Path $repoRoot ("runs\" + $baselineRunId)
-if (!(Test-Path -LiteralPath $baselineRunDir)) {
-    throw "Baseline run directory not found: $baselineRunDir"
+
+if (!(Test-Path $baselineRunDir)) {
+    $compareResult = New-NotComparableCompareResult `
+        -CaseId $caseId `
+        -CandidateRunId $RunId `
+        -BaselineRunId $baselineRunId `
+        -CompareStatus "BASELINE_MISSING" `
+        -Reason "baseline run directory not found: $baselineRunDir" `
+        -CasePolicy $casePolicy
+
+    Save-CompareResultAndReturn -RunDir $runDir -CompareResult $compareResult
+    return
 }
 
 $baselineResponsePath = Join-Path $baselineRunDir "response.txt"
 $baselineResponse = Read-TextFile -Path $baselineResponsePath
-
-$casePolicy = New-CasePolicy -Meta $candidateMeta
 
 $rawDiffDetected = ($baselineResponse -ne $candidateResponse)
 
@@ -708,11 +836,18 @@ $compare = [ordered]@{
     caseId                   = $caseId
     baselineRunId            = $baselineRunId
     candidateRunId           = $candidateRunId
+
+    compareStatus            = "COMPARABLE"
+    comparable               = $true
+    notComparableReason      = $null
+
     formatMatch              = $formatMatch
     rawDiffDetected          = $rawDiffDetected
     normalizedDiffDetected   = $normalizedDiffDetected
     severityHint             = $severityHint
+
     casePolicy               = $casePolicy
+
     possibleOmissionDetected = $possibleOmissionDetected
     diffSignals = [pscustomobject]@{
         baselineLineCount = $lengthSignals.BaselineLineCount
