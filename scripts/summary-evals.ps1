@@ -251,7 +251,7 @@ function Get-SummaryLine {
 
     $parts = @()
 
-    if ($Item.ResponseState -eq "missing" -or $Item.ResponseState -eq "empty") {
+    if (($Item.ResponseState -eq "missing" -or $Item.ResponseState -eq "empty") -and -not $Item.InitialBaselineReview) {
         $parts += "response 未入力"
     }
 
@@ -267,14 +267,20 @@ function Get-SummaryLine {
         }
     }
     elseif ($Item.Status -eq "REVIEW") {
-        if ($Item.PossibleOmissionDetected) {
-            $parts += "欠落疑いあり"
+        if ($Item.InitialBaselineReview) {
+            $parts += "baseline 未作成のため差分比較は未実施"
+            $parts += "初回レビュー候補"
         }
-        if ($Item.NormalizedDiffDetected) {
-            $parts += "差分あり"
-        }
-        if ($Item.FormatMatchKnown -and -not $Item.FormatMatch) {
-            $parts += "形式差異あり"
+        else {
+            if ($Item.PossibleOmissionDetected) {
+                $parts += "欠落疑いあり"
+            }
+            if ($Item.NormalizedDiffDetected) {
+                $parts += "差分あり"
+            }
+            if ($Item.FormatMatchKnown -and -not $Item.FormatMatch) {
+                $parts += "形式差異あり"
+            }
         }
     }
     elseif ($Item.Status -eq "PASS") {
@@ -463,6 +469,18 @@ function New-RunSummaryItem {
 
     $executedAtSort = Get-ExecutedAtSortValue -Manifest $manifest -RunId $runId
 
+    $isInitialBaselineReview = $false
+
+    if ($hasEval -and $status -eq "REVIEW") {
+        foreach ($reason in @($reasons)) {
+            $text = [string]$reason
+            if ($text -like "comparison not available: BASELINE_MISSING*") {
+                $isInitialBaselineReview = $true
+                break
+            }
+        }
+    }
+
     return [PSCustomObject]@{
         CaseId                   = $caseId
         RunId                    = $runId
@@ -480,8 +498,73 @@ function New-RunSummaryItem {
         RawDiffDetected          = $rawDiffDetected
         NormalizedDiffDetected   = $normalizedDiffDetected
         PossibleOmissionDetected = $possibleOmissionDetected
+        InitialBaselineReview    = $isInitialBaselineReview
         ExecutedAtSort           = $executedAtSort
     }
+}
+
+function Test-IsInitialBaselineReview {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Eval
+    )
+
+    if ($null -eq $Eval) {
+        return $false
+    }
+
+    $verdict = ""
+    if ($null -ne $Eval.PSObject.Properties["recommendedVerdict"]) {
+        $verdict = [string]$Eval.recommendedVerdict
+    }
+
+    if ($verdict -ne "REVIEW") {
+        return $false
+    }
+
+    if ($null -eq $Eval.PSObject.Properties["reasons"]) {
+        return $false
+    }
+
+    foreach ($reason in @($Eval.reasons)) {
+        $text = [string]$reason
+        if ($text -like "comparison not available: BASELINE_MISSING*") {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-EvalEvidenceValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Eval,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Key
+    )
+
+    if ($null -eq $Eval) {
+        return $null
+    }
+
+    $evidenceProp = $Eval.PSObject.Properties["evidence"]
+    if ($null -eq $evidenceProp) {
+        return $null
+    }
+
+    $evidence = $evidenceProp.Value
+    if ($null -eq $evidence) {
+        return $null
+    }
+
+    $targetProp = $evidence.PSObject.Properties[$Key]
+    if ($null -eq $targetProp) {
+        return $null
+    }
+
+    return $targetProp.Value
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -552,6 +635,48 @@ else {
     foreach ($item in $sortedReviewQueue) {
         $severityUpper = (Get-StringOrDefault $item.Severity "N/A").ToUpper()
         $severityLower = (Get-StringOrDefault $item.Severity "n/a").ToLower()
+        $isInitialBaselineReview = [bool]$item.InitialBaselineReview
+
+        if ($isInitialBaselineReview) {
+            $lines.Add("[$($item.Status)] $($item.CaseId) ($severityUpper / $severityLower) [latest]")
+            $lines.Add("Run: $($item.RunId)")
+            $lines.Add("")
+
+            $lines.Add("▶ ACTION")
+            $lines.Add("1. candidate output を人間確認")
+            $lines.Add("2. 初回 baseline として妥当なら promote")
+            $lines.Add("3. 不適切なら prompt / case / response を見直し")
+            $lines.Add("")
+
+            $lines.Add("▶ SUMMARY")
+            $lines.Add((Get-SummaryLine -Item $item))
+            $lines.Add("")
+
+            $lines.Add("▶ SIGNALS")
+            $lines.Add("- compareStatus: BASELINE_MISSING")
+            $lines.Add("- comparable: False")
+            $lines.Add("- severity: $($item.Severity)")
+            $lines.Add("")
+
+            $lines.Add("▶ DECISION GUIDE")
+            $lines.Add("")
+            $lines.Add("- INITIAL REVIEW:")
+            $lines.Add("  初回 baseline 未確立。出力が妥当なら promote 検討")
+            $lines.Add("")
+            $lines.Add("- REVIEW:")
+            $lines.Add("  人間確認後、意図通りなら promote 可能")
+            $lines.Add("")
+            $lines.Add("▶ NEXT STEP")
+            $lines.Add("1. response / output を確認")
+            $lines.Add("2. 初回 baseline として採用可否を判断")
+            $lines.Add("3. Promote (if accepted):")
+            $lines.Add("   ./scripts/promote-baseline.ps1 -RunId $($item.RunId)")
+            $lines.Add("")
+            $lines.Add("--------------------------------------------------")
+            $lines.Add("")
+
+            continue
+        }
 
         $lines.Add("[$($item.Status)] $($item.CaseId) ($severityUpper / $severityLower) [latest]")
         $lines.Add("Run: $($item.RunId)")
