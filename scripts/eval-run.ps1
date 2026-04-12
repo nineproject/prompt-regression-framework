@@ -16,6 +16,24 @@ trap {
 $OutputEncoding = [System.Text.Encoding]::UTF8
 chcp 65001 > $null
 
+function Write-Utf8BomFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Content
+    )
+
+    $directory = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path $directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
+    $utf8Bom = New-Object System.Text.UTF8Encoding($true)
+    [System.IO.File]::WriteAllText($Path, $Content, $utf8Bom)
+}
+
 function Read-JsonFile {
     param(
         [Parameter(Mandatory = $true)]
@@ -134,6 +152,54 @@ function Add-UniqueItem {
     }
 }
 
+function New-NonComparableEvalResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CaseId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RunId,
+
+        [Parameter(Mandatory = $true)]
+        $Compare
+    )
+
+    $compareStatus = [string]$Compare.compareStatus
+    $reasonDetail = [string]$Compare.notComparableReason
+
+    $reasons = @()
+    $reasons += "comparison not available: $compareStatus"
+
+    if (-not [string]::IsNullOrWhiteSpace($reasonDetail)) {
+        $reasons += $reasonDetail
+    }
+
+    $reviewFocus = @(
+        "review candidate output manually",
+        "confirm output is acceptable as an initial baseline",
+        "promote as baseline if approved"
+    )
+
+    return [ordered]@{
+        caseId = $CaseId
+        runId  = $RunId
+
+        recommendedVerdict = "REVIEW"
+        reasons            = $reasons
+        reviewFocus        = $reviewFocus
+
+        evidence = [ordered]@{
+            compareStatus            = $Compare.compareStatus
+            comparable               = $Compare.comparable
+            severityHint             = $Compare.severityHint
+            formatMatch              = $Compare.formatMatch
+            rawDiffDetected          = $Compare.rawDiffDetected
+            normalizedDiffDetected   = $Compare.normalizedDiffDetected
+            possibleOmissionDetected = $Compare.possibleOmissionDetected
+        }
+    }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $runDir = Join-Path $repoRoot ("runs\" + $RunId)
 
@@ -146,6 +212,42 @@ $evalPath = Join-Path $runDir "eval.json"
 
 $compare = Read-JsonFile -Path $comparePath
 
+$caseId = [string](Get-OptionalPropertyValue -Object $compare -Name "caseId")
+if ([string]::IsNullOrWhiteSpace($caseId)) {
+    throw "caseId not found in compare.json"
+}
+
+$compareStatus = "COMPARABLE"
+if ($null -ne $compare.PSObject.Properties["compareStatus"]) {
+    $value = [string]$compare.compareStatus
+    if (-not [string]::IsNullOrWhiteSpace($value)) {
+        $compareStatus = $value
+    }
+}
+
+if ($compareStatus -ne "COMPARABLE") {
+    $evalResult = New-NonComparableEvalResult `
+        -CaseId $caseId `
+        -RunId $RunId `
+        -Compare $compare
+
+    $evalPath = Join-Path $runDir "eval.json"
+    $evalJson = $evalResult | ConvertTo-Json -Depth 10
+    Write-Utf8BomFile -Path $evalPath -Content $evalJson
+
+    Write-Host ""
+    Write-Host "===== EVAL SUMMARY ====="
+    Write-Host "Case           : $caseId"
+    Write-Host "Run            : $RunId"
+    Write-Host "Verdict        : REVIEW"
+    Write-Host "Reason         : comparison not available ($compareStatus)"
+    Write-Host "Next Step      : review candidate output and promote baseline if approved"
+    Write-Host ""
+    Write-Host "Saved eval artifact: $evalPath"
+
+    return
+}
+
 $possibleOmissionDetected = Get-BoolOrDefault `
     -Object $compare `
     -PropertyName "possibleOmissionDetected" `
@@ -153,11 +255,6 @@ $possibleOmissionDetected = Get-BoolOrDefault `
 
 if ($null -ne $compare.possibleOmissionDetected) {
     $possibleOmissionDetected = [bool]$compare.possibleOmissionDetected
-}
-
-$caseId = [string](Get-OptionalPropertyValue -Object $compare -Name "caseId")
-if ([string]::IsNullOrWhiteSpace($caseId)) {
-    throw "caseId not found in compare.json"
 }
 
 $formatMatch = [bool](Get-OptionalPropertyValue -Object $compare -Name "formatMatch")
