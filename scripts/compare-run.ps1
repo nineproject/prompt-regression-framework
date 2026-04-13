@@ -617,7 +617,7 @@ function New-NotComparableCompareResult {
         [string]$CandidateRunId,
 
         [AllowNull()]
-        [string]$BaselineRunId,
+        $BaselineRunId,
 
         [Parameter(Mandatory = $true)]
         [string]$CompareStatus,
@@ -674,14 +674,87 @@ function Save-CompareResultAndReturn {
     Write-Host ""
     Write-Host "===== COMPARE SUMMARY ====="
     Write-Host "Case           : $($CompareResult.caseId)"
-    Write-Host "Baseline Run   : $(if ($CompareResult.baselineRunId) { $CompareResult.baselineRunId } else { '(missing)' })"
+
+    $baselineRunLabel = if ($null -ne $CompareResult.baselineRunId -and $CompareResult.baselineRunId -ne "") {
+        $CompareResult.baselineRunId
+    }
+    else {
+        "(none)"
+    }
+
+    Write-Host "Baseline Run   : $baselineRunLabel"
+
     Write-Host "Candidate Run  : $($CompareResult.candidateRunId)"
     Write-Host "Comparable     : $($CompareResult.comparable)"
     Write-Host "Status         : $($CompareResult.compareStatus)"
-    Write-Host "Reason         : $($CompareResult.notComparableReason)"
-    Write-Host "Next Step      : review candidate output and promote baseline if approved"
+    if ($CompareResult.comparable -eq $false) {
+        Write-Host "Reason         : $($CompareResult.notComparableReason)"
+        Write-Host "Next Step      : review candidate output and promote baseline if approved"
+    }
     Write-Host ""
     Write-Host "Saved compare artifact: $comparePath"
+}
+
+function New-CompareResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CaseId,
+
+        [AllowNull()]
+        [string]$BaselineRunId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CandidateRunId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$CompareStatus,
+
+        [Parameter(Mandatory = $true)]
+        [bool]$Comparable,
+
+        [AllowNull()]
+        $FormatMatch = $null,
+
+        [AllowNull()]
+        $RawDiffDetected = $null,
+
+        [AllowNull()]
+        $NormalizedDiffDetected = $null,
+
+        [string]$SeverityHint = "N/A",
+
+        [AllowNull()]
+        $CasePolicy = $null,
+
+        [AllowNull()]
+        $PossibleOmissionDetected = $null,
+
+        [AllowNull()]
+        $DiffSignals = $null,
+
+        [AllowNull()]
+        $OmissionSignals = $null,
+
+        [AllowNull()]
+        $SummarySignals = $null
+    )
+
+    return [ordered]@{
+        caseId                   = $CaseId
+        baselineRunId            = $BaselineRunId
+        candidateRunId           = $CandidateRunId
+        compareStatus            = $CompareStatus
+        comparable               = $Comparable
+        formatMatch              = $FormatMatch
+        rawDiffDetected          = $RawDiffDetected
+        normalizedDiffDetected   = $NormalizedDiffDetected
+        severityHint             = $SeverityHint
+        casePolicy               = $CasePolicy
+        possibleOmissionDetected = $PossibleOmissionDetected
+        diffSignals              = $DiffSignals
+        omissionSignals          = $OmissionSignals
+        summarySignals           = $SummarySignals
+    }
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -715,7 +788,7 @@ if (!(Test-Path $baselinePath)) {
         -CandidateRunId $RunId `
         -BaselineRunId $null `
         -CompareStatus "BASELINE_MISSING" `
-        -Reason "baseline file not found: $baselinePath" `
+        -Reason "baseline definition not found: $baselinePath" `
         -CasePolicy $casePolicy
 
     Save-CompareResultAndReturn -RunDir $runDir -CompareResult $compareResult
@@ -731,7 +804,7 @@ if ([string]::IsNullOrWhiteSpace($baselineRunId)) {
         -CandidateRunId $RunId `
         -BaselineRunId $null `
         -CompareStatus "BASELINE_UNREADABLE" `
-        -Reason "baseline run id field not found in baseline file: $baselinePath" `
+        -Reason "baseline run id missing or empty in baseline file: $baselinePath" `
         -CasePolicy $casePolicy
 
     Save-CompareResultAndReturn -RunDir $runDir -CompareResult $compareResult
@@ -745,7 +818,7 @@ if (!(Test-Path $baselineRunDir)) {
         -CaseId $caseId `
         -CandidateRunId $RunId `
         -BaselineRunId $baselineRunId `
-        -CompareStatus "BASELINE_MISSING" `
+        -CompareStatus "BASELINE_UNREADABLE" `
         -Reason "baseline run directory not found: $baselineRunDir" `
         -CasePolicy $casePolicy
 
@@ -832,39 +905,37 @@ if ($casePolicy.expectedFormat -eq 'json' -and $formatMatch -and $normalizedDiff
 
 $possibleOmissionDetected = ($possibleOmissionByLines -or $possibleOmissionBySummary)
 
-$compare = [ordered]@{
-    caseId                   = $caseId
-    baselineRunId            = $baselineRunId
-    candidateRunId           = $candidateRunId
-
-    compareStatus            = "COMPARABLE"
-    comparable               = $true
-    notComparableReason      = $null
-
-    formatMatch              = $formatMatch
-    rawDiffDetected          = $rawDiffDetected
-    normalizedDiffDetected   = $normalizedDiffDetected
-    severityHint             = $severityHint
-
-    casePolicy               = $casePolicy
-
-    possibleOmissionDetected = $possibleOmissionDetected
-    diffSignals = [pscustomobject]@{
-        baselineLineCount = $lengthSignals.BaselineLineCount
-        candidateLineCount = $lengthSignals.CandidateLineCount
-        baselineCharCount = $lengthSignals.BaselineCharCount
-        candidateCharCount = $lengthSignals.CandidateCharCount
-        lengthRatio = $lengthSignals.LengthRatio
-        missingNormalizedLines = $lineSignals.MissingNormalizedLineCount
-        addedNormalizedLines = $lineSignals.AddedNormalizedLineCount
-        sharedLineRatio = $lineSignals.SharedLineRatio
-    }
-    omissionSignals = [pscustomobject]@{
-        byLines = $possibleOmissionByLines
-        bySummary = $possibleOmissionBySummary
-    }
-    summarySignals = $summaryOmissionSignals
+$diffSignals = [pscustomobject]@{
+    baselineLineCount = $lengthSignals.BaselineLineCount
+    candidateLineCount = $lengthSignals.CandidateLineCount
+    baselineCharCount = $lengthSignals.BaselineCharCount
+    candidateCharCount = $lengthSignals.CandidateCharCount
+    lengthRatio = $lengthSignals.LengthRatio
+    missingNormalizedLines = $lineSignals.MissingNormalizedLineCount
+    addedNormalizedLines = $lineSignals.AddedNormalizedLineCount
+    sharedLineRatio = $lineSignals.SharedLineRatio
 }
+
+$omissionSignals = [pscustomobject]@{
+    byLines = $possibleOmissionByLines
+    bySummary = $possibleOmissionBySummary
+}
+
+$compare = New-CompareResult `
+    -CaseId $caseId `
+    -BaselineRunId $baselineRunId `
+    -CandidateRunId $RunId `
+    -CompareStatus "OK" `
+    -Comparable $true `
+    -FormatMatch $formatMatch `
+    -RawDiffDetected $rawDiffDetected `
+    -NormalizedDiffDetected $normalizedDiffDetected `
+    -SeverityHint $severityHint `
+    -CasePolicy $casePolicy `
+    -PossibleOmissionDetected $possibleOmissionDetected `
+    -DiffSignals $diffSignals `
+    -OmissionSignals $omissionSignals `
+    -SummarySignals $summaryOmissionSignals
 
 $compare |
     ConvertTo-Json -Depth 10 |

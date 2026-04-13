@@ -267,9 +267,10 @@ function Get-SummaryLine {
         }
     }
     elseif ($Item.Status -eq "REVIEW") {
-        if ($Item.InitialBaselineReview) {
-            $parts += "baseline 未作成のため差分比較は未実施"
-            $parts += "初回レビュー候補"
+        $statusSummaryText = Get-CompareStatusSummaryText -CompareStatus $Item.CompareStatus
+
+        if (-not [string]::IsNullOrWhiteSpace($statusSummaryText)) {
+            $parts += $statusSummaryText
         }
         else {
             if ($Item.PossibleOmissionDetected) {
@@ -396,6 +397,14 @@ function New-RunSummaryItem {
     $hasCompare = ($null -ne $compare)
     $hasEval = ($null -ne $eval)
 
+    $compareStatus = ""
+    if ($hasCompare) {
+        $compareStatus = Get-StringOrDefault (Get-PropertyValueOrDefault -Object $compare -PropertyName "compareStatus" -Default "") ""
+    }
+    elseif ($hasEval) {
+        $compareStatus = Get-StringOrDefault (Get-EvalEvidenceValue -Eval $eval -Key "compareStatus") ""
+    }
+
     $status = "SKIPPED_OR_PENDING"
     $severity = "N/A"
     $reasons = @()
@@ -471,7 +480,10 @@ function New-RunSummaryItem {
 
     $isInitialBaselineReview = $false
 
-    if ($hasEval -and $status -eq "REVIEW") {
+    if ($hasEval -and $status -eq "REVIEW" -and $compareStatus -eq "BASELINE_MISSING") {
+        $isInitialBaselineReview = $true
+    }
+    elseif ($hasEval -and $status -eq "REVIEW") {
         foreach ($reason in @($reasons)) {
             $text = [string]$reason
             if ($text -like "comparison not available: BASELINE_MISSING*") {
@@ -498,6 +510,7 @@ function New-RunSummaryItem {
         RawDiffDetected          = $rawDiffDetected
         NormalizedDiffDetected   = $normalizedDiffDetected
         PossibleOmissionDetected = $possibleOmissionDetected
+        CompareStatus            = $compareStatus
         InitialBaselineReview    = $isInitialBaselineReview
         ExecutedAtSort           = $executedAtSort
     }
@@ -565,6 +578,28 @@ function Get-EvalEvidenceValue {
     }
 
     return $targetProp.Value
+}
+
+function Get-CompareStatusSummaryText {
+    param(
+        [AllowNull()]
+        [string]$CompareStatus
+    )
+
+    switch ($CompareStatus) {
+        "BASELINE_MISSING" {
+            return "baseline 未作成のため差分比較は未実施 + 初回 baseline review candidate"
+        }
+        "BASELINE_UNREADABLE" {
+            return "baseline artifact が読めないため比較は未実施 + baseline 修復または再確認が必要"
+        }
+        "ERROR" {
+            return "比較状態の解釈に失敗 + compare artifact / script log の確認が必要"
+        }
+        default {
+            return $null
+        }
+    }
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -653,7 +688,7 @@ else {
             $lines.Add("")
 
             $lines.Add("▶ SIGNALS")
-            $lines.Add("- compareStatus: BASELINE_MISSING")
+            $lines.Add("- compareStatus: $($item.CompareStatus)")
             $lines.Add("- comparable: False")
             $lines.Add("- severity: $($item.Severity)")
             $lines.Add("")

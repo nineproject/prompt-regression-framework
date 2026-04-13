@@ -164,7 +164,23 @@ function New-NonComparableEvalResult {
         $Compare
     )
 
-    $compareStatus = [string]$Compare.compareStatus
+    $compareStatus = $null
+    if ($null -ne $Compare.PSObject.Properties["compareStatus"]) {
+        $value = [string]$Compare.compareStatus
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            $compareStatus = $value
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($compareStatus)) {
+        if ($null -ne $Compare.PSObject.Properties["comparable"] -and [bool]$Compare.comparable -eq $false) {
+            $compareStatus = "ERROR"
+        }
+        else {
+            $compareStatus = "ERROR"
+        }
+    }
+
     $reasonDetail = [string]$Compare.notComparableReason
 
     $reasons = @()
@@ -174,11 +190,29 @@ function New-NonComparableEvalResult {
         $reasons += $reasonDetail
     }
 
-    $reviewFocus = @(
-        "review candidate output manually",
-        "confirm output is acceptable as an initial baseline",
-        "promote as baseline if approved"
-    )
+    $reviewFocus = switch ($compareStatus) {
+        "BASELINE_MISSING" {
+            @(
+                "review candidate output manually",
+                "confirm output is acceptable as an initial baseline",
+                "promote as baseline if approved"
+            )
+        }
+        "BASELINE_UNREADABLE" {
+            @(
+                "review candidate output manually",
+                "check baseline artifact integrity",
+                "repair baseline state before relying on comparison results"
+            )
+        }
+        default {
+            @(
+                "review candidate output manually",
+                "inspect compare artifact and script logs",
+                "verify whether the comparison pipeline completed correctly"
+            )
+        }
+    }
 
     return [ordered]@{
         caseId = $CaseId
@@ -189,7 +223,7 @@ function New-NonComparableEvalResult {
         reviewFocus        = $reviewFocus
 
         evidence = [ordered]@{
-            compareStatus            = $Compare.compareStatus
+            compareStatus            = $compareStatus
             comparable               = $Compare.comparable
             severityHint             = $Compare.severityHint
             formatMatch              = $Compare.formatMatch
@@ -217,7 +251,7 @@ if ([string]::IsNullOrWhiteSpace($caseId)) {
     throw "caseId not found in compare.json"
 }
 
-$compareStatus = "COMPARABLE"
+$compareStatus = $null
 if ($null -ne $compare.PSObject.Properties["compareStatus"]) {
     $value = [string]$compare.compareStatus
     if (-not [string]::IsNullOrWhiteSpace($value)) {
@@ -225,13 +259,28 @@ if ($null -ne $compare.PSObject.Properties["compareStatus"]) {
     }
 }
 
-if ($compareStatus -ne "COMPARABLE") {
+$comparable = $true
+if ($null -ne $compare.PSObject.Properties["comparable"]) {
+    $comparable = [bool]$compare.comparable
+}
+
+if ([string]::IsNullOrWhiteSpace($compareStatus)) {
+    if ($comparable -eq $false) {
+        $compareStatus = "ERROR"
+    }
+    else {
+        $compareStatus = "OK"
+    }
+}
+
+if ($compareStatus -ne "OK") {
+    $compare | Add-Member -NotePropertyName compareStatus -NotePropertyValue $compareStatus -Force
+
     $evalResult = New-NonComparableEvalResult `
         -CaseId $caseId `
         -RunId $RunId `
         -Compare $compare
 
-    $evalPath = Join-Path $runDir "eval.json"
     $evalJson = $evalResult | ConvertTo-Json -Depth 10
     Write-Utf8BomFile -Path $evalPath -Content $evalJson
 
