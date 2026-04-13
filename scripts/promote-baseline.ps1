@@ -83,44 +83,63 @@ $baselinePath = Join-Path $baselineDir ("{0}.json" -f $caseId)
 
 $previousBaselineRunId = $null
 $baselineExists = Test-Path $baselinePath
+$promotionMode = "INITIAL_CREATE"
 
 if ($baselineExists) {
     $existing = Read-JsonFile -Path $baselinePath
-    $previousBaselineRunId = $existing.baselineRunId
+    $previousBaselineRunId = [string]$existing.baselineRunId
 
-    if (($previousBaselineRunId -ne $RunId) -and (-not $Force)) {
+    if ([string]::IsNullOrWhiteSpace($previousBaselineRunId)) {
+        $promotionMode = "INITIAL_CREATE"
+    }
+    else {
+        $promotionMode = "UPDATE"
+    }
+
+    if (($previousBaselineRunId -ne $RunId) -and (-not [string]::IsNullOrWhiteSpace($previousBaselineRunId)) -and (-not $Force)) {
         Write-Host ""
         Write-Host "Baseline already exists:"
         Write-Host ("Case ID          : {0}" -f $caseId)
         Write-Host ("Current Baseline : {0}" -f $previousBaselineRunId)
         Write-Host ("New Candidate    : {0}" -f $RunId)
+        Write-Host ("Mode             : UPDATE")
         Write-Host ""
         throw "Use -Force to overwrite the existing baseline."
     }
 }
 
+$storedPreviousBaselineRunId = $null
+if (-not [string]::IsNullOrWhiteSpace($previousBaselineRunId)) {
+    $storedPreviousBaselineRunId = $previousBaselineRunId
+}
+
 $baseline = [ordered]@{
-    caseId = $caseId
-    baselineRunId = $RunId
-    approvedAt = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssK")
-    approvedBy = $ApprovedBy
-    status = "active"
-    notes = $Notes
+    caseId                = $caseId
+    baselineRunId         = $RunId
+    previousBaselineRunId = $storedPreviousBaselineRunId
+    approvedAt            = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssK")
+    approvedBy            = $ApprovedBy
+    status                = "active"
+    notes                 = $Notes
 }
 
 $baselineJson = $baseline | ConvertTo-Json -Depth 10
 Set-Content -LiteralPath $baselinePath -Value $baselineJson -Encoding UTF8
 
 Write-Host ""
-Write-Host "===== BASELINE PROMOTED ====="
+Write-Host "===== PROMOTE BASELINE ====="
+Write-Host ("Mode             : {0}" -f $promotionMode)
 Write-Host ("Case ID          : {0}" -f $caseId)
-Write-Host ("Baseline Run ID  : {0}" -f $RunId)
 
-if ($previousBaselineRunId) {
-    Write-Host ("Previous Baseline: {0}" -f $previousBaselineRunId)
+if ($promotionMode -eq "INITIAL_CREATE") {
+    Write-Host ("Source Run       : {0}" -f $RunId)
+    Write-Host ("Previous Baseline: (none)")
+    Write-Host ("Result           : baseline established")
 }
 else {
-    Write-Host "Previous Baseline: (none)"
+    Write-Host ("Previous Baseline: {0}" -f $previousBaselineRunId)
+    Write-Host ("New Baseline     : {0}" -f $RunId)
+    Write-Host ("Result           : baseline updated")
 }
 
 Write-Host ("Approved By      : {0}" -f $ApprovedBy)
