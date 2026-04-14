@@ -74,6 +74,22 @@ This metadata is used during evaluation and regression analysis.
 
 ---
 
+## Note on First Run (No Baseline)
+
+In initial runs, a baseline may not exist yet.
+
+In such cases:
+
+- compareStatus = BASELINE_MISSING
+- recommendedVerdict = REVIEW
+
+This is expected behavior.
+
+The output of the first run should be reviewed manually and may be promoted
+as the initial baseline if acceptable.
+
+---
+
 # Recommended Metadata Fields
 
 The following metadata fields are recommended.
@@ -152,6 +168,25 @@ Used for:
 
 - creative generation
 - open-ended tasks
+
+---
+
+## Note on Evaluation Behavior
+
+Metadata does not directly determine the final verdict.
+
+Evaluation is based on:
+
+- compare evidence (differences, omissions, format)
+- metadata (assertionMode, changePolicy, priority)
+- human review
+
+In other words:
+
+compare = evidence  
+eval = interpretation  
+
+Final decisions are always made by a human.
 
 ---
 
@@ -362,6 +397,19 @@ Add a test case when:
 - a migration changes expected behavior
 
 Every bug fix should ideally introduce a new regression test.
+
+---
+
+## Relationship to Baseline
+
+Test cases define expected behavior, but actual regression comparison depends on baseline.
+
+- baseline defines the current accepted behavior
+- compare measures difference from baseline
+- eval interprets the difference
+- human decides whether to update baseline
+
+Without a baseline, the first run becomes the reference candidate.
 
 ---
 

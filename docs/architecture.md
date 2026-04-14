@@ -15,23 +15,27 @@ managed carefully, not as a single static artifact.
 
 Prompt edits should not be made as ad hoc rewrites.
 
-Each meaningful change should be introduced as a MIG so that:
+Meaningful prompt changes may be introduced through MIGs so that:
 
 - the reason for the change is explicit
 - the impact can be tested
 - the history remains traceable
 
-### 2. Execution and evaluation are separate
+### 2. Compare, evaluation, and decision are separate
 
-Generating an output and deciding whether it is acceptable are different tasks.
+Generating an output, comparing it to baseline, interpreting the result,
+and deciding whether to accept it are different tasks.
 
 This framework separates:
 
 - run generation
-- evaluation
-- verdict recording
+- compare (evidence)
+- eval (interpretation)
+- human decision
+- promote (action)
 
-This supports both automation and human review.
+This supports both automation and human review while preserving clear
+responsibility boundaries.
 
 ### 3. Reproducibility matters
 
@@ -73,15 +77,11 @@ Contains the verification assets.
 
 ### runs/
 
-Contains execution artifacts for each run.
+Contains execution artifacts for each run, including prompt, response, compare result, eval result, and manifest.
 
 ### evals/
 
-Contains evaluation records and verdict-related data.
-
-### reports/
-
-Contains human-readable summaries and regression reports.
+Contains human-readable summaries and review-oriented outputs.
 
 ### schemas/
 
@@ -89,7 +89,7 @@ Contains JSON schemas used to validate metadata and artifact structures.
 
 ### scripts/
 
-Contains operational scripts for building, running, evaluating, and validating.
+Contains operational scripts for building, running, comparing, evaluating, summarizing, promoting, and validating.
 
 ---
 
@@ -113,13 +113,28 @@ This ordering ensures that:
 
 ## Conceptual Flow
 
-1. Create or update prompt behavior via MIG
+1. Create or update prompt behavior
 2. Build prompt from layered sources
-3. Execute test cases
+3. Execute test cases or suites
 4. Persist run artifacts
-5. Evaluate outputs
-6. Record verdict
-7. Compare against baseline where needed
+5. Compare candidate output against baseline
+6. Evaluate compare evidence
+7. Review as human
+8. Promote baseline if appropriate
+
+---
+
+## First-Run Handling
+
+The framework supports first-run scenarios where no approved baseline exists yet.
+
+In such cases:
+
+- compare records `BASELINE_MISSING` as evidence
+- eval interprets the state as `REVIEW`
+- human decides whether the run should become the initial baseline
+
+This avoids treating baseline absence as an operational error.
 
 ---
 

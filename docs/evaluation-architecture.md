@@ -127,6 +127,8 @@ recommendedVerdict = FAIL
 
 However, this recommendation does not finalize the decision.
 
+Eval handles non-comparable cases by interpreting them as REVIEW.
+
 # Layer 4 — Human Verdict Layer
 
 The final decision is recorded by a human evaluator.

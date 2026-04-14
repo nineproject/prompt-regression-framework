@@ -242,6 +242,19 @@ but does not yet implement:
 
 ---
 
+## Non-comparable cases
+
+If compareStatus is:
+
+- BASELINE_MISSING
+- BASELINE_UNREADABLE
+
+Then:
+
+recommendedVerdict = REVIEW
+
+---
+
 # Verdict Types
 
 After evaluation, a final verdict must be recorded.

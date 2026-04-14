@@ -69,3 +69,13 @@ Future comparison tooling should evaluate differences such as:
 - notable semantic shifts
 
 The goal is not exact equality but meaningful change detection.
+
+---
+
+## Promotion Modes
+
+### INITIAL_CREATE
+First-time baseline creation.
+
+### UPDATE
+Replacing existing baseline (requires intentional decision).

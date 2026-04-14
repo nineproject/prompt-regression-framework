@@ -112,6 +112,17 @@ The comparison detects:
 - response differences
 - potential regressions
 
+### First Run
+
+If no baseline exists:
+
+- compareStatus = BASELINE_MISSING
+- recommendedVerdict = REVIEW
+
+This is expected.
+
+The output should be reviewed and may be promoted as the initial baseline.
+
 ---
 
 ## Step 5 — Evaluate Output

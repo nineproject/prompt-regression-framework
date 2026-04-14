@@ -329,6 +329,82 @@ execution options
 
 ---
 
+## 11.6 First-Run Behavior (Phase13)
+
+### Background
+
+Previously, the framework assumed that a baseline always exists.
+
+This caused issues during initial setup:
+
+- compare could not run without baseline
+- first-run experience was unclear
+- users had to manually establish baseline without guidance
+
+---
+
+### New Behavior
+
+The framework now treats "no baseline" as a valid state.
+
+#### compare-run
+
+When no baseline exists:
+
+    {
+      "compareStatus": "BASELINE_MISSING",
+      "comparable": false
+    }
+
+This is recorded as structured evidence.
+
+---
+
+#### eval-run
+
+Non-comparable results are interpreted as:
+
+    {
+      "recommendedVerdict": "REVIEW",
+      "reasons": [
+        "comparison not available: BASELINE_MISSING"
+      ]
+    }
+
+---
+
+#### summary-evals
+
+First runs are displayed as:
+
+    Initial baseline review candidate
+
+---
+
+### Meaning
+
+First run is:
+
+- not an error
+- not a failure
+- not a comparison
+
+It is a **baseline candidate review state**.
+
+---
+
+### Design Intent
+
+Instead of failing when baseline is missing:
+
+- compare records the state as evidence
+- eval interprets it as REVIEW
+- human decides whether to promote
+
+This preserves responsibility separation while improving usability.
+
+---
+
 ## 12. Script Responsibilities
 
 This section defines intended responsibilities, not implementation detail.
@@ -423,6 +499,48 @@ reviewer identity and notes are recorded if needed
 
 Promoting a baseline means:
 the new behavior becomes the approved reference point for future comparisons.
+
+---
+
+### 15.1 Promotion Modes (Phase13)
+
+Baseline promotion has two distinct modes:
+
+#### INITIAL_CREATE
+
+- First-time baseline establishment
+- No previous baseline exists
+- Current run becomes the reference
+
+#### UPDATE
+
+- Existing baseline is replaced
+- Requires intentional decision (typically with -Force)
+- Previous baseline is recorded for traceability
+
+---
+
+### 15.2 Promotion Traceability
+
+Baseline files may include:
+
+- baselineRunId
+- previousBaselineRunId
+- approvedAt
+- approvedBy
+
+This enables minimal traceability without full versioning.
+
+---
+
+### 15.3 Design Intent
+
+Separating INITIAL_CREATE and UPDATE ensures:
+
+- clear understanding of baseline lifecycle
+- safer updates
+- reduced accidental overwrites
+- better operational clarity
 
 ---
 

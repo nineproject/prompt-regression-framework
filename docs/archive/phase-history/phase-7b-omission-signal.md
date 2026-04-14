@@ -1,4 +1,12 @@
-# Phase 7B Minimal Extension: Omission-like Signal
+# Phase 7B: Omission Signal Introduction
+
+## Note
+
+This document is a historical design note from Phase 7B.
+
+It represents an intermediate step in the evolution of the evaluation system.
+
+The current implementation has evolved beyond this stage.
 
 ## Summary
 

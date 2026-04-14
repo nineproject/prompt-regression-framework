@@ -50,6 +50,34 @@ flowchart TD
 
 ---
 
+## 🆕 First Run Behavior (Important)
+
+On the first run, no baseline exists yet.
+
+```
+compareStatus = BASELINE_MISSING
+recommendedVerdict = REVIEW
+```
+
+This is **expected behavior**.
+
+👉 It means:
+
+- Comparison is not yet available  
+- The output is a **candidate for initial baseline**  
+
+---
+
+## 🔍 What does REVIEW mean?
+
+REVIEW does NOT mean failure.
+
+- Human confirmation is required  
+- Changes may be acceptable  
+- Baseline may be updated if intentional  
+
+---
+
 ## Included sample prompts
 
 This repository includes minimal sample prompts so that the default example suite can run immediately after clone.
@@ -63,6 +91,8 @@ On the very first accepted run, create the initial baseline with:
 ```
 
 Comparison starts from the second approved run onward.
+
+---
 
 ## ⚡ Daily Usage
 
@@ -116,6 +146,20 @@ Focus on:
 ```powershell
 ./scripts/promote-baseline.ps1 -RunId RUN_xxx
 ```
+
+---
+
+## 📦 Baseline Management
+
+### INITIAL_CREATE
+
+- Establish the first baseline  
+- Accept current output as reference  
+
+### UPDATE
+
+- Replace existing baseline  
+- Requires intentional decision (`-Force`)  
 
 ---
 
