@@ -1,8 +1,9 @@
 ﻿{
     "caseId":  "TC-0001",
-    "baselineRunId":  "RUN_20260312_222754_TC-0001",
-    "approvedAt":  "2026-03-14T01:03:11+09:00",
-    "approvedBy":  "sari",
+    "baselineRunId":  "RUN_20260413_222220_TC-0001",
+    "previousBaselineRunId":  "RUN_20260412_122356_TC-0001",
+    "approvedAt":  "2026-04-13T22:23:23+09:00",
+    "approvedBy":  "unknown",
     "status":  "active",
-    "notes":  "test promote"
+    "notes":  ""
 }
