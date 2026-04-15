@@ -86,3 +86,20 @@ Historical documents and past design phases.
 - Keep prompts evolvable  
 - Keep behavior stable  
 - Keep humans in control  
+
+---
+
+## 🧭 New User Path
+
+Start here if unsure:
+
+→ README Quick Start  
+→ workflow.md  
+→ case-authoring.md  
+
+Do NOT start from:
+
+- framework-design.md
+- schema documents
+
+These are reference materials.

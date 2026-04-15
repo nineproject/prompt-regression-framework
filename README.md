@@ -2,6 +2,8 @@
 
 > Local-first prompt regression framework with human-in-the-loop evaluation. Safe prompt evolution over blind optimization.
 
+> Test prompts like code. Catch regressions before they reach production.
+
 ---
 
 ## 🚀 Overview
@@ -234,3 +236,79 @@ flowchart TD
 - Keep prompts evolvable  
 - Keep behavior stable  
 - Keep humans in control  
+
+---
+
+## 🚀 Quick Start (First 5 Minutes)
+
+Follow this path if you are new:
+
+### 1. Run a test case
+
+```powershell
+./scripts/run-case.ps1 -CaseId TC-0001
+```
+
+---
+
+### 2. Open the generated prompt and response
+
+```
+runs/RUN_xxx/response.txt
+```
+
+Fill in the response (or use an LLM).
+
+---
+
+### 3. Compare and evaluate
+
+```powershell
+./scripts/compare-run.ps1 -RunId RUN_xxx
+./scripts/eval-run.ps1 -RunId RUN_xxx
+```
+
+---
+
+### 4. Review summary
+
+```powershell
+./scripts/summary-evals.ps1 -RunDate YYYY-MM-DD
+```
+
+You will see:
+
+```
+REVIEW | Initial baseline review candidate
+```
+
+---
+
+### 5. Promote baseline (first time)
+
+```powershell
+./scripts/promote-baseline.ps1 -RunId RUN_xxx
+```
+
+---
+
+### 6. Make a change using MIG
+
+```powershell
+./scripts/new-mig.ps1 -Name MIG-0001
+```
+
+Edit the MIG to change behavior.
+
+---
+
+### 7. Run again and observe differences
+
+Repeat steps 1–4.
+
+---
+
+### 8. Decide
+
+- If change is correct → promote
+- If not → revise MIG
