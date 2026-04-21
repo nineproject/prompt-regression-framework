@@ -239,11 +239,81 @@ flowchart TD
 
 ---
 
+## 💡 Concept
+
+This framework separates:
+
+- BASE (global behavior)
+- SPEC_BASE (detailed design)
+- SPEC_SUMMARY (LLM-optimized spec)
+- MIG (intentional changes)
+- CASE (task-level instruction)
+
+This allows safe evolution of prompts without breaking existing behavior.
+
+---
+
 ## 🚀 Quick Start (First 5 Minutes)
 
 Follow this path if you are new:
 
-### 1. Run a test case
+---
+
+## 🧭 0. Choose how to start
+
+### Option A: Try the sample project (recommended for first-time users)
+
+A complete working example is available under:
+
+```
+examples/sample-project/
+```
+
+This includes:
+
+* BASE (prompt rules)
+* SPEC_BASE (detailed specification)
+* SPEC_SUMMARY (LLM-optimized specification)
+* Test cases and suite
+
+👉 Copy it to a working directory:
+
+```powershell
+cp -r examples/sample-project my-project
+cd my-project
+```
+
+---
+
+### Option B: Start your own project
+
+If you want to use this framework for your own idea:
+
+1. Edit base prompt:
+
+```
+prompts/base/base.md
+```
+
+2. Define your project:
+
+```
+prompts/spec/spec_base.md
+prompts/spec/spec_summary.md
+```
+
+3. Create a test case:
+
+```
+tests/cases/TC-0001/case.md
+```
+
+⚠️ If you leave sample content in BASE or SPEC,
+it will be merged into your prompt and may produce confusing outputs.
+
+---
+
+## 1. Run a test case
 
 ```powershell
 ./scripts/run-case.ps1 -CaseId TC-0001
@@ -251,7 +321,7 @@ Follow this path if you are new:
 
 ---
 
-### 2. Open the generated prompt and response
+## 2. Open the generated prompt and response
 
 ```
 runs/RUN_xxx/response.txt
@@ -261,7 +331,7 @@ Fill in the response (or use an LLM).
 
 ---
 
-### 3. Compare and evaluate
+## 3. Compare and evaluate
 
 ```powershell
 ./scripts/compare-run.ps1 -RunId RUN_xxx
@@ -270,7 +340,7 @@ Fill in the response (or use an LLM).
 
 ---
 
-### 4. Review summary
+## 4. Review summary
 
 ```powershell
 ./scripts/summary-evals.ps1 -RunDate YYYY-MM-DD
@@ -284,7 +354,7 @@ REVIEW | Initial baseline review candidate
 
 ---
 
-### 5. Promote baseline (first time)
+## 5. Promote baseline (first time)
 
 ```powershell
 ./scripts/promote-baseline.ps1 -RunId RUN_xxx
@@ -292,7 +362,7 @@ REVIEW | Initial baseline review candidate
 
 ---
 
-### 6. Make a change using MIG
+## 6. Make a change using MIG
 
 ```powershell
 ./scripts/new-mig.ps1 -Name MIG-0001
@@ -302,16 +372,16 @@ Edit the MIG to change behavior.
 
 ---
 
-### 7. Run again and observe differences
+## 7. Run again and observe differences
 
 Repeat steps 1–4.
 
 ---
 
-### 8. Decide
+## 8. Decide
 
-- If change is correct → promote
-- If not → revise MIG
+* If change is correct → promote
+* If not → revise MIG
 
 ---
 
@@ -328,3 +398,24 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 After that, try running the script again.
 
 > Note: This setting applies only to the current PowerShell session and will be reset when you close the terminal.
+
+---
+
+## About sample project
+
+A complete working example is available under:
+
+examples/sample-project/
+
+This includes:
+
+* BASE (prompt rules)
+* SPEC_BASE (detailed specification)
+* SPEC_SUMMARY (LLM-optimized specification)
+* Test cases and suite
+
+If you want to quickly understand how the framework works,
+start from the sample project.
+
+If you want to use it for your own project,
+create your own BASE and SPEC instead of modifying the sample.
