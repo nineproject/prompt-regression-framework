@@ -312,3 +312,19 @@ Repeat steps 1–4.
 
 - If change is correct → promote
 - If not → revise MIG
+
+---
+
+## ⚠️ First-Time Setup (PowerShell Execution Policy)
+
+When running the scripts for the first time, you may encounter an error due to PowerShell's execution policy restrictions.
+
+To allow script execution for the current session, run the following command:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+After that, try running the script again.
+
+> Note: This setting applies only to the current PowerShell session and will be reset when you close the terminal.
