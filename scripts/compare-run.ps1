@@ -249,7 +249,6 @@ function Get-BaselineRunId {
         [string]$BaselinePath
     )
 
-    # 柔軟に既存形式を吸収する
     $candidateKeys = @(
         "baselineRunId",
         "runId",
