@@ -365,7 +365,7 @@ REVIEW | Initial baseline review candidate
 ## 6. Make a change using MIG
 
 ```powershell
-./scripts/new-mig.ps1 -Name MIG-0001
+./scripts/new-mig.ps1 -Title xxx
 ```
 
 Edit the MIG to change behavior.

@@ -70,7 +70,7 @@ REVIEW | Initial baseline review candidate
 ### Step 1 — Create a MIG
 
 ```powershell
-./scripts/new-mig.ps1 -Name MIG-0001
+./scripts/new-mig.ps1 -Title xxx
 ```
 
 ---
