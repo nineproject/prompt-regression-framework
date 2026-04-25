@@ -152,6 +152,174 @@ function Add-UniqueItem {
     }
 }
 
+function Test-IsMigRun {
+    param(
+        $Manifest
+    )
+
+    if ($null -eq $Manifest) {
+        return $false
+    }
+
+    if (-not ($Manifest.PSObject.Properties.Name -contains 'migName')) {
+        return $false
+    }
+
+    $migName = [string]$Manifest.migName
+
+    if ([string]::IsNullOrWhiteSpace($migName)) {
+        return $false
+    }
+
+    return ($migName -ne 'NO-MIG')
+}
+
+function Test-SummaryBasedOmissionStrong {
+    param(
+        $Compare
+    )
+
+    if ($null -eq $Compare) {
+        return $false
+    }
+
+    if (-not ($Compare.PSObject.Properties.Name -contains 'summarySignals')) {
+        return $false
+    }
+
+    $summarySignals = $Compare.summarySignals
+    if ($null -eq $summarySignals) {
+        return $false
+    }
+
+    if (-not ($summarySignals.PSObject.Properties.Name -contains 'missingTokenRatio')) {
+        return $false
+    }
+
+    try {
+        $missingTokenRatio = [double]$summarySignals.missingTokenRatio
+        return ($missingTokenRatio -ge 0.30)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-AdditionDominantChange {
+    param(
+        $Compare
+    )
+
+    if ($null -eq $Compare) {
+        return $false
+    }
+
+    if (-not ($Compare.PSObject.Properties.Name -contains 'diffSignals')) {
+        return $false
+    }
+
+    $diffSignals = $Compare.diffSignals
+    if ($null -eq $diffSignals) {
+        return $false
+    }
+
+    $addedCount = 0
+    $missingCount = 0
+    $candidateCharCount = 0
+    $baselineCharCount = 0
+    $candidateLineCount = 0
+    $baselineLineCount = 0
+
+    if ($diffSignals.PSObject.Properties.Name -contains 'addedNormalizedLines') {
+        $addedCount = @($diffSignals.addedNormalizedLines).Count
+    }
+
+    if ($diffSignals.PSObject.Properties.Name -contains 'missingNormalizedLines') {
+        $missingCount = @($diffSignals.missingNormalizedLines).Count
+    }
+
+    if ($diffSignals.PSObject.Properties.Name -contains 'candidateCharCount' -and $null -ne $diffSignals.candidateCharCount) {
+        $candidateCharCount = [int]$diffSignals.candidateCharCount
+    }
+
+    if ($diffSignals.PSObject.Properties.Name -contains 'baselineCharCount' -and $null -ne $diffSignals.baselineCharCount) {
+        $baselineCharCount = [int]$diffSignals.baselineCharCount
+    }
+
+    if ($diffSignals.PSObject.Properties.Name -contains 'candidateLineCount' -and $null -ne $diffSignals.candidateLineCount) {
+        $candidateLineCount = [int]$diffSignals.candidateLineCount
+    }
+
+    if ($diffSignals.PSObject.Properties.Name -contains 'baselineLineCount' -and $null -ne $diffSignals.baselineLineCount) {
+        $baselineLineCount = [int]$diffSignals.baselineLineCount
+    }
+
+    if ($addedCount -gt $missingCount) {
+        return $true
+    }
+
+    if ($candidateCharCount -gt 0 -and $baselineCharCount -gt 0 -and $candidateCharCount -ge $baselineCharCount) {
+        return $true
+    }
+
+    if ($candidateLineCount -gt 0 -and $baselineLineCount -gt 0 -and $candidateLineCount -ge $baselineLineCount) {
+        return $true
+    }
+
+    return $false
+}
+
+function Test-ShouldModerateToReviewForMig {
+    param(
+        $Manifest,
+        $Compare
+    )
+
+    if (-not (Test-IsMigRun -Manifest $Manifest)) {
+        return $false
+    }
+
+    if ($null -eq $Compare) {
+        return $false
+    }
+
+    $formatMatch = $true
+    if ($Compare.PSObject.Properties.Name -contains 'formatMatch' -and $null -ne $Compare.formatMatch) {
+        $formatMatch = [bool]$Compare.formatMatch
+    }
+
+    if (-not $formatMatch) {
+        return $false
+    }
+
+    $normalizedDiffDetected = $false
+    if ($Compare.PSObject.Properties.Name -contains 'normalizedDiffDetected' -and $null -ne $Compare.normalizedDiffDetected) {
+        $normalizedDiffDetected = [bool]$Compare.normalizedDiffDetected
+    }
+
+    $possibleOmissionDetected = $false
+    if ($Compare.PSObject.Properties.Name -contains 'possibleOmissionDetected' -and $null -ne $Compare.possibleOmissionDetected) {
+        $possibleOmissionDetected = [bool]$Compare.possibleOmissionDetected
+    }
+
+    if (-not ($normalizedDiffDetected -or $possibleOmissionDetected)) {
+        return $false
+    }
+
+    $summaryBasedOmissionStrong = Test-SummaryBasedOmissionStrong -Compare $Compare
+    if ($summaryBasedOmissionStrong) {
+        return $false
+    }
+
+    $additionDominant = Test-AdditionDominantChange -Compare $Compare
+
+    if ($possibleOmissionDetected -and -not $additionDominant) {
+        return $false
+    }
+
+    return $true
+}
+
 function New-NonComparableEvalResult {
     param(
         [Parameter(Mandatory = $true)]
@@ -243,6 +411,14 @@ if (!(Test-Path -LiteralPath $runDir)) {
 
 $comparePath = Join-Path $runDir "compare.json"
 $evalPath = Join-Path $runDir "eval.json"
+$manifestPath = Join-Path $runDir "manifest.json"
+
+if (Test-Path $manifestPath) {
+    $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+}
+else {
+    $manifest = $null
+}
 
 $compare = Read-JsonFile -Path $comparePath
 
@@ -397,6 +573,11 @@ $isPartialSummaryOmission = (
 $reasons = [System.Collections.ArrayList]::new()
 $reviewFocus = [System.Collections.ArrayList]::new()
 
+$isMigRun = Test-IsMigRun -Manifest $manifest
+$summaryBasedOmissionStrong = Test-SummaryBasedOmissionStrong -Compare $compare
+$additionDominant = Test-AdditionDominantChange -Compare $compare
+$shouldModerateToReviewForMig = Test-ShouldModerateToReviewForMig -Manifest $manifest -Compare $compare
+
 $recommendedVerdict = "PASS"
 
 # Omission interpretation:
@@ -492,14 +673,34 @@ else {
     }
 
     if ($changePolicy -eq "low-drift") {
-        $recommendedVerdict = "FAIL"
-        Add-UniqueItem -List ([ref]$reasons) -Value "low-drift policy escalated normalized diff"
-        Add-UniqueItem -List ([ref]$reviewFocus) -Value "check whether output drift exceeds allowed tolerance"
+
+        if ($shouldModerateToReviewForMig -and $recommendedVerdict -ne "FAIL") {
+            $recommendedVerdict = "REVIEW"
+
+            Add-UniqueItem -List ([ref]$reasons) -Value "MIG-applied run: detected changes may reflect intended spec evolution"
+            Add-UniqueItem -List ([ref]$reasons) -Value "REVIEW preferred over immediate FAIL under MIG context"
+
+            Add-UniqueItem -List ([ref]$reviewFocus) -Value "verify that the MIG-intended additions are correct"
+            Add-UniqueItem -List ([ref]$reviewFocus) -Value "confirm that existing important behavior was not unintentionally broken"
+            Add-UniqueItem -List ([ref]$reviewFocus) -Value "review whether added changes match the intended migration scope"
+        }
+        else {
+            $recommendedVerdict = "FAIL"
+            Add-UniqueItem -List ([ref]$reasons) -Value "low-drift policy escalated normalized diff"
+            Add-UniqueItem -List ([ref]$reviewFocus) -Value "check whether output drift exceeds allowed tolerance"
+        }
     }
 }
 
 $reasons = @($reasons | Select-Object -Unique)
 $reviewFocus = @($reviewFocus | Select-Object -Unique)
+
+$migAwareEvidence = [ordered]@{
+    isMigRun = $isMigRun
+    moderatedToReview = $shouldModerateToReviewForMig
+    summaryBasedOmissionStrong = $summaryBasedOmissionStrong
+    additionDominant = $additionDominant
+}
 
 $eval = [ordered]@{
     caseId = $caseId
@@ -513,6 +714,7 @@ $eval = [ordered]@{
         rawDiffDetected = $rawDiffDetected
         normalizedDiffDetected = $normalizedDiffDetected
         possibleOmissionDetected = $possibleOmissionDetected
+        migAware = $migAwareEvidence
     }
 }
 
