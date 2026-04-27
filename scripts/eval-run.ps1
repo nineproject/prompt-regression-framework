@@ -335,7 +335,10 @@ function New-NonComparableEvalResult {
         [string]$MigName = "NO-MIG",
 
         [Parameter(Mandatory = $false)]
-        [string]$MigType = "none"
+        [string]$MigType = "none",
+
+        [Parameter(Mandatory = $false)]
+        [string]$MigTypeSource = "no-mig"
     )
 
     $compareStatus = $null
@@ -406,6 +409,7 @@ function New-NonComparableEvalResult {
             possibleOmissionDetected = $Compare.possibleOmissionDetected
             migName                  = $MigName
             migType                  = $MigType
+            migTypeSource            = $MigTypeSource
             migAwareAdjustmentApplied = $false
         }
     }
@@ -439,6 +443,64 @@ function Get-MigType {
     }
 
     return "unknown"
+}
+
+function Get-ExplicitMigTypeFromMeta {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [Parameter(Mandatory = $false)]
+        [string]$MigName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($MigName) -or $MigName -eq "NO-MIG") {
+        return $null
+    }
+
+    $allowedMigTypes = @(
+        "add-only",
+        "modify",
+        "refactor",
+        "breaking",
+        "unknown"
+    )
+
+    $metaCandidates = @()
+
+    # 1. Exact match:
+    #    prompts/mig-meta/0001-add-comment.md
+    $metaCandidates += Join-Path $RepoRoot "prompts\mig-meta\$MigName.md"
+
+    # 2. MIG-ID match:
+    #    migName = 0001-add-comment
+    #    meta    = MIG-0001.md
+    if ($MigName -match '^(\d{4})(?:-|$)') {
+        $migId = $Matches[1]
+        $metaCandidates += Join-Path $RepoRoot "prompts\mig-meta\MIG-$migId.md"
+    }
+
+    foreach ($metaPath in $metaCandidates) {
+        if (-not (Test-Path $metaPath)) {
+            continue
+        }
+
+        $lines = Get-Content $metaPath -Encoding UTF8
+
+        foreach ($line in $lines) {
+            if ($line -match '^\s*migType\s*:\s*(.+?)\s*$') {
+                $migType = $Matches[1].Trim().ToLowerInvariant()
+
+                if ($allowedMigTypes -contains $migType) {
+                    return $migType
+                }
+
+                return "unknown"
+            }
+        }
+    }
+
+    return $null
 }
 
 function Add-UniqueItem {
@@ -554,7 +616,28 @@ if ($null -ne $manifest -and $manifest.PSObject.Properties.Name -contains "migNa
     }
 }
 
-$migType = Get-MigType -MigName $migName
+$migName = $manifest.migName
+
+if ([string]::IsNullOrWhiteSpace($migName)) {
+    $migName = "NO-MIG"
+}
+
+$explicitMigType = Get-ExplicitMigTypeFromMeta `
+    -RepoRoot $repoRoot `
+    -MigName $migName
+
+if ($migName -eq "NO-MIG") {
+    $migType = "none"
+    $migTypeSource = "no-mig"
+}
+elseif (-not [string]::IsNullOrWhiteSpace($explicitMigType)) {
+    $migType = $explicitMigType
+    $migTypeSource = "explicit-meta"
+}
+else {
+    $migType = Get-MigType -MigName $migName
+    $migTypeSource = "name-inference"
+}
 
 $compare = Read-JsonFile -Path $comparePath
 
@@ -593,7 +676,8 @@ if ($compareStatus -ne "OK") {
         -RunId $RunId `
         -Compare $compare `
         -MigName $migName `
-        -MigType $migType
+        -MigType $migType `
+        -MigTypeSource $migTypeSource
 
     $evalJson = $evalResult | ConvertTo-Json -Depth 10
     Write-Utf8BomFile -Path $evalPath -Content $evalJson
@@ -860,6 +944,7 @@ $eval = [ordered]@{
         possibleOmissionDetected = $possibleOmissionDetected
         migName = $migName
         migType = $migType
+        migTypeSource = $migTypeSource
         migAwareAdjustmentApplied = $migAwareAdjustmentApplied
     }
 }
