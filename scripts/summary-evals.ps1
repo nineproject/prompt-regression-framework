@@ -394,6 +394,8 @@ function New-RunSummaryItem {
     $compare = Read-JsonFile -Path $comparePath
     $eval = Read-JsonFile -Path $evalPath
 
+    $evalEvidence = Get-PropertyValueOrDefault -Object $eval -PropertyName "evidence" -Default $null
+
     $hasCompare = ($null -ne $compare)
     $hasEval = ($null -ne $eval)
 
@@ -442,6 +444,7 @@ function New-RunSummaryItem {
     $normalizedDiffDetected = $false
     $rawDiffDetected = $false
     $possibleOmissionDetected = $false
+    $omissionStrength = "n/a"
 
     if ($hasCompare) {
         $compareFormatMatch = Get-PropertyValueOrDefault -Object $compare -PropertyName "formatMatch" -Default $null
@@ -459,8 +462,6 @@ function New-RunSummaryItem {
         $possibleOmissionDetected = [bool]$compareOmission
     }
     elseif ($hasEval) {
-        $evalEvidence = Get-PropertyValueOrDefault -Object $eval -PropertyName "evidence" -Default $null
-
         $evalFormatMatch = Get-PropertyValueOrDefault -Object $evalEvidence -PropertyName "formatMatch" -Default $null
         $evalNormalizedDiff = Get-PropertyValueOrDefault -Object $evalEvidence -PropertyName "normalizedDiffDetected" -Default $false
         $evalRawDiff = Get-PropertyValueOrDefault -Object $evalEvidence -PropertyName "rawDiffDetected" -Default $false
@@ -474,6 +475,15 @@ function New-RunSummaryItem {
         $normalizedDiffDetected = [bool]$evalNormalizedDiff
         $rawDiffDetected = [bool]$evalRawDiff
         $possibleOmissionDetected = [bool]$evalOmission
+    }
+
+    $omissionStrengthValue = Get-PropertyValueOrDefault `
+        -Object $evalEvidence `
+        -PropertyName "omissionStrength" `
+        -Default ""
+
+    if ($null -ne $omissionStrengthValue -and $omissionStrengthValue -ne "") {
+        $omissionStrength = [string]$omissionStrengthValue
     }
 
     $executedAtSort = Get-ExecutedAtSortValue -Manifest $manifest -RunId $runId
@@ -499,6 +509,7 @@ function New-RunSummaryItem {
         RunDir                   = $RunDir
         RunDate                  = $runDate
         Status                   = $status
+        OmissionStrength         = $omissionStrength
         Severity                 = $severity
         Reasons                  = @($reasons)
         ReviewFocus              = @($reviewFocus)
@@ -738,6 +749,7 @@ else {
         }
 
         $lines.Add("- omission: $omissionText")
+        $lines.Add("- omissionStrength: $($item.OmissionStrength)")
         $lines.Add("- diff: $diffText")
         $lines.Add("- formatMatch: $formatText")
         $lines.Add("- severity: $($item.Severity)")
@@ -811,7 +823,7 @@ else {
             $reasonText = "n/a"
         }
 
-        $lines.Add("$($item.CaseId) : $($item.Status) | Severity=$severityText | Run=$($item.RunId) | $reasonText")
+        $lines.Add("$($item.CaseId) : $($item.Status) | Severity=$severityText | OmissionStrength=$($item.OmissionStrength) | Run=$($item.RunId) | $reasonText")
     }
     $lines.Add("")
 }
