@@ -329,7 +329,13 @@ function New-NonComparableEvalResult {
         [string]$RunId,
 
         [Parameter(Mandatory = $true)]
-        $Compare
+        $Compare,
+
+        [Parameter(Mandatory = $false)]
+        [string]$MigName = "NO-MIG",
+
+        [Parameter(Mandatory = $false)]
+        [string]$MigType = "none"
     )
 
     $compareStatus = $null
@@ -398,7 +404,124 @@ function New-NonComparableEvalResult {
             rawDiffDetected          = $Compare.rawDiffDetected
             normalizedDiffDetected   = $Compare.normalizedDiffDetected
             possibleOmissionDetected = $Compare.possibleOmissionDetected
+            migName                  = $MigName
+            migType                  = $MigType
+            migAwareAdjustmentApplied = $false
         }
+    }
+}
+
+function Get-MigType {
+    param(
+        [string]$MigName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($MigName) -or $MigName -eq "NO-MIG") {
+        return "none"
+    }
+
+    $name = $MigName.ToLowerInvariant()
+
+    if ($name -match "breaking|break|remove|delete|drop") {
+        return "breaking"
+    }
+
+    if ($name -match "refactor|cleanup|rename|restructure") {
+        return "refactor"
+    }
+
+    if ($name -match "modify|change|update|adjust|revise") {
+        return "modify"
+    }
+
+    if ($name -match "add|append|introduce|new") {
+        return "add-only"
+    }
+
+    return "unknown"
+}
+
+function Add-UniqueItem {
+    param(
+        [System.Collections.ArrayList]$List,
+        [string]$Item
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Item) -and -not $List.Contains($Item)) {
+        [void]$List.Add($Item)
+    }
+}
+
+function Apply-MigTypeAwareVerdictAdjustment {
+    param(
+        [string]$RecommendedVerdict,
+        [string]$MigType,
+        [string]$SeverityHint,
+        [bool]$PossibleOmissionDetected,
+        [bool]$FormatMatch,
+        [bool]$NormalizedDiffDetected,
+        [System.Collections.ArrayList]$Reasons,
+        [System.Collections.ArrayList]$ReviewFocus
+    )
+
+    $adjustmentApplied = $false
+    $finalVerdict = $RecommendedVerdict
+
+    if ($MigType -eq "none") {
+        return [pscustomobject]@{
+            Verdict = $finalVerdict
+            AdjustmentApplied = $false
+        }
+    }
+
+    switch ($MigType) {
+        "add-only" {
+            if ($RecommendedVerdict -eq "FAIL" -and -not $PossibleOmissionDetected -and $FormatMatch) {
+                Add-UniqueItem $Reasons "MIG type add-only softened FAIL to REVIEW"
+                Add-UniqueItem $ReviewFocus "check whether added behavior is intentional and backward compatible"
+                $finalVerdict = "REVIEW"
+                $adjustmentApplied = $true
+            }
+        }
+
+        "modify" {
+            if ($RecommendedVerdict -eq "FAIL" -and $SeverityHint -ne "HIGH" -and -not $PossibleOmissionDetected) {
+                Add-UniqueItem $Reasons "MIG type modify allowed human review for non-critical drift"
+                Add-UniqueItem $ReviewFocus "check whether modified behavior matches intended MIG"
+                $finalVerdict = "REVIEW"
+                $adjustmentApplied = $true
+            }
+        }
+
+        "refactor" {
+            if ($RecommendedVerdict -eq "PASS" -and $NormalizedDiffDetected) {
+                Add-UniqueItem $Reasons "MIG type refactor escalated normalized diff to REVIEW"
+                Add-UniqueItem $ReviewFocus "check whether refactor preserved observable behavior"
+                $finalVerdict = "REVIEW"
+                $adjustmentApplied = $true
+            }
+        }
+
+        "breaking" {
+            if ($RecommendedVerdict -eq "REVIEW" -and ($SeverityHint -eq "HIGH" -or $PossibleOmissionDetected -or -not $FormatMatch)) {
+                Add-UniqueItem $Reasons "MIG type breaking kept strict evaluation"
+                Add-UniqueItem $ReviewFocus "check whether breaking behavior is explicitly intended"
+                $finalVerdict = "FAIL"
+                $adjustmentApplied = $true
+            }
+        }
+
+        default {
+            if ($RecommendedVerdict -eq "FAIL") {
+                Add-UniqueItem $Reasons "MIG type unknown; keeping conservative evaluation"
+                Add-UniqueItem $ReviewFocus "check MIG intent manually"
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Verdict = $finalVerdict
+        AdjustmentApplied = $adjustmentApplied
     }
 }
 
@@ -412,13 +535,26 @@ if (!(Test-Path -LiteralPath $runDir)) {
 $comparePath = Join-Path $runDir "compare.json"
 $evalPath = Join-Path $runDir "eval.json"
 $manifestPath = Join-Path $runDir "manifest.json"
+$manifest = $null
 
 if (Test-Path $manifestPath) {
-    $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+    try {
+        $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        $manifest = $null
+    }
 }
-else {
-    $manifest = $null
+
+$migName = "NO-MIG"
+
+if ($null -ne $manifest -and $manifest.PSObject.Properties.Name -contains "migName") {
+    if (-not [string]::IsNullOrWhiteSpace($manifest.migName)) {
+        $migName = [string]$manifest.migName
+    }
 }
+
+$migType = Get-MigType -MigName $migName
 
 $compare = Read-JsonFile -Path $comparePath
 
@@ -455,7 +591,9 @@ if ($compareStatus -ne "OK") {
     $evalResult = New-NonComparableEvalResult `
         -CaseId $caseId `
         -RunId $RunId `
-        -Compare $compare
+        -Compare $compare `
+        -MigName $migName `
+        -MigType $migType
 
     $evalJson = $evalResult | ConvertTo-Json -Depth 10
     Write-Utf8BomFile -Path $evalPath -Content $evalJson
@@ -692,15 +830,21 @@ else {
     }
 }
 
+$migAdjustment = Apply-MigTypeAwareVerdictAdjustment `
+    -RecommendedVerdict $recommendedVerdict `
+    -MigType $migType `
+    -SeverityHint $severityHint `
+    -PossibleOmissionDetected $possibleOmissionDetected `
+    -FormatMatch $formatMatch `
+    -NormalizedDiffDetected $normalizedDiffDetected `
+    -Reasons $reasons `
+    -ReviewFocus $reviewFocus
+
+$recommendedVerdict = $migAdjustment.Verdict
+$migAwareAdjustmentApplied = [bool]$migAdjustment.AdjustmentApplied
+
 $reasons = @($reasons | Select-Object -Unique)
 $reviewFocus = @($reviewFocus | Select-Object -Unique)
-
-$migAwareEvidence = [ordered]@{
-    isMigRun = $isMigRun
-    moderatedToReview = $shouldModerateToReviewForMig
-    summaryBasedOmissionStrong = $summaryBasedOmissionStrong
-    additionDominant = $additionDominant
-}
 
 $eval = [ordered]@{
     caseId = $caseId
@@ -714,7 +858,9 @@ $eval = [ordered]@{
         rawDiffDetected = $rawDiffDetected
         normalizedDiffDetected = $normalizedDiffDetected
         possibleOmissionDetected = $possibleOmissionDetected
-        migAware = $migAwareEvidence
+        migName = $migName
+        migType = $migType
+        migAwareAdjustmentApplied = $migAwareAdjustmentApplied
     }
 }
 
