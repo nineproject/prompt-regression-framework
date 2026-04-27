@@ -66,6 +66,26 @@ function Get-RunPaths {
     }
 }
 
+function Get-JsonPropertyValueOrDefault {
+    param(
+        [object]$Object,
+        [string]$PropertyName,
+        [object]$Default
+    )
+
+    if ($null -eq $Object) {
+        return $Default
+    }
+
+    $property = $Object.PSObject.Properties[$PropertyName]
+
+    if ($null -eq $property -or $null -eq $property.Value -or $property.Value -eq "") {
+        return $Default
+    }
+
+    return $property.Value
+}
+
 $repoRoot = Get-RepoRoot
 $runPaths = Get-RunPaths -RepoRoot $repoRoot -TargetRunId $RunId
 
@@ -122,15 +142,31 @@ if ([string]::IsNullOrWhiteSpace($approvedReason)) {
     $approvedReason = "unspecified"
 }
 
+$migName = [string](Get-JsonPropertyValueOrDefault -Object $manifest -PropertyName "migName" -Default "NO-MIG")
+$migType = [string](Get-JsonPropertyValueOrDefault -Object $manifest -PropertyName "migType" -Default "unknown")
+$migTypeSource = [string](Get-JsonPropertyValueOrDefault -Object $manifest -PropertyName "migTypeSource" -Default "unknown")
+
+if ($storedPreviousBaselineRunId -eq $RunId) {
+    $storedPreviousBaselineRunId = $null
+}
+
 $baseline = [ordered]@{
     caseId                = $caseId
     baselineRunId         = $RunId
     previousBaselineRunId = $storedPreviousBaselineRunId
+
     approvedAt            = (Get-Date).ToString("s")
     approvedReason        = $approvedReason
     approvedBy            = $ApprovedBy
+
     status                = "active"
     notes                 = $Notes
+
+    baselineContext = [ordered]@{
+        migName = $migName
+        migType = $migType
+        migTypeSource = $migTypeSource
+    }
 }
 
 $baselineJson = $baseline | ConvertTo-Json -Depth 10
