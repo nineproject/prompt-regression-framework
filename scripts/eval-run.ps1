@@ -538,20 +538,50 @@ function Apply-MigTypeAwareVerdictAdjustment {
 
     switch ($MigType) {
         "add-only" {
-            if ($RecommendedVerdict -eq "FAIL" -and -not $PossibleOmissionDetected -and $FormatMatch) {
-                Add-UniqueItem $Reasons "MIG type add-only softened FAIL to REVIEW"
-                Add-UniqueItem $ReviewFocus "check whether added behavior is intentional and backward compatible"
-                $finalVerdict = "REVIEW"
-                $adjustmentApplied = $true
+            if ($RecommendedVerdict -eq "FAIL") {
+                if ($PossibleOmissionDetected) {
+                    Add-UniqueItem $Reasons "MIG type add-only kept FAIL because omission risk was detected"
+                    Add-UniqueItem $ReviewFocus "check whether existing behavior or required information was removed"
+                }
+                elseif (-not $FormatMatch) {
+                    Add-UniqueItem $Reasons "MIG type add-only kept FAIL because output format changed"
+                    Add-UniqueItem $ReviewFocus "check whether output format change is intentional and backward compatible"
+                }
+                else {
+                    Add-UniqueItem $Reasons "MIG type add-only softened FAIL to REVIEW"
+                    Add-UniqueItem $ReviewFocus "check whether added behavior is intentional and backward compatible"
+                    $finalVerdict = "REVIEW"
+                    $adjustmentApplied = $true
+                }
+            }
+            elseif ($RecommendedVerdict -eq "REVIEW") {
+                if ($PossibleOmissionDetected) {
+                    Add-UniqueItem $Reasons "MIG type add-only kept REVIEW because omission risk was detected"
+                    Add-UniqueItem $ReviewFocus "check whether existing behavior or required information was removed"
+                }
+                elseif (-not $FormatMatch) {
+                    Add-UniqueItem $Reasons "MIG type add-only kept REVIEW because output format changed"
+                    Add-UniqueItem $ReviewFocus "check whether output format change is intentional and backward compatible"
+                }
+                else {
+                    Add-UniqueItem $Reasons "MIG type add-only kept REVIEW for human validation of added behavior"
+                    Add-UniqueItem $ReviewFocus "check whether added behavior is intentional and backward compatible"
+                }
             }
         }
 
         "modify" {
-            if ($RecommendedVerdict -eq "FAIL" -and $SeverityHint -ne "HIGH" -and -not $PossibleOmissionDetected) {
-                Add-UniqueItem $Reasons "MIG type modify allowed human review for non-critical drift"
-                Add-UniqueItem $ReviewFocus "check whether modified behavior matches intended MIG"
-                $finalVerdict = "REVIEW"
-                $adjustmentApplied = $true
+            if ($RecommendedVerdict -eq "FAIL") {
+                if ($SeverityHint -eq "HIGH" -or $PossibleOmissionDetected) {
+                    Add-UniqueItem $Reasons "MIG type modify kept FAIL because high-risk drift was detected"
+                    Add-UniqueItem $ReviewFocus "check whether modified behavior removed required behavior"
+                }
+                else {
+                    Add-UniqueItem $Reasons "MIG type modify allowed human review for non-critical drift"
+                    Add-UniqueItem $ReviewFocus "check whether modified behavior matches intended MIG"
+                    $finalVerdict = "REVIEW"
+                    $adjustmentApplied = $true
+                }
             }
         }
 
@@ -562,11 +592,24 @@ function Apply-MigTypeAwareVerdictAdjustment {
                 $finalVerdict = "REVIEW"
                 $adjustmentApplied = $true
             }
+
+            if ($RecommendedVerdict -eq "FAIL" -and -not $PossibleOmissionDetected -and $FormatMatch -and $SeverityHint -ne "HIGH") {
+                Add-UniqueItem $Reasons "MIG type refactor softened non-critical FAIL to REVIEW"
+                Add-UniqueItem $ReviewFocus "check whether refactor changed behavior unexpectedly"
+                $finalVerdict = "REVIEW"
+                $adjustmentApplied = $true
+            }
         }
 
         "breaking" {
-            if ($RecommendedVerdict -eq "REVIEW" -and ($SeverityHint -eq "HIGH" -or $PossibleOmissionDetected -or -not $FormatMatch)) {
-                Add-UniqueItem $Reasons "MIG type breaking kept strict evaluation"
+            if ($RecommendedVerdict -eq "PASS") {
+                Add-UniqueItem $Reasons "MIG type breaking escalated PASS to REVIEW"
+                Add-UniqueItem $ReviewFocus "confirm breaking change is explicitly intended"
+                $finalVerdict = "REVIEW"
+                $adjustmentApplied = $true
+            }
+            elseif ($RecommendedVerdict -eq "REVIEW" -and ($SeverityHint -eq "HIGH" -or $PossibleOmissionDetected -or -not $FormatMatch)) {
+                Add-UniqueItem $Reasons "MIG type breaking escalated REVIEW to FAIL due to high-risk evidence"
                 Add-UniqueItem $ReviewFocus "check whether breaking behavior is explicitly intended"
                 $finalVerdict = "FAIL"
                 $adjustmentApplied = $true
