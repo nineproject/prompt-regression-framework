@@ -124,6 +124,165 @@ Check:
 
 ---
 
+## Evaluation Model (Phase 13)
+
+Evaluation is divided into three clear responsibilities:
+
+- compare = evidence generation
+- eval = interpretation of evidence
+- human = final decision
+
+### Evidence (compare)
+
+compare produces raw signals only:
+
+- formatMatch
+- rawDiffDetected
+- normalizedDiffDetected
+- possibleOmissionDetected
+- omissionStrength (none / weak / strong)
+- diffSignals / summarySignals
+
+compare does NOT make judgments.
+
+---
+
+### Interpretation (eval)
+
+eval interprets evidence and produces:
+
+- recommendedVerdict (PASS / REVIEW / FAIL)
+- reasons (categorized)
+- reviewFocus
+- evidence (copied + enriched)
+
+#### Reason Categories
+
+Reasons are categorized for readability:
+
+- [OMISSION]
+- [DIFF]
+- [FORMAT]
+- [POLICY]
+- [MIG]
+
+Example:
+
+[OMISSION] strong omission risk detected  
+[POLICY] low-drift policy escalated omission risk  
+[MIG] add-only kept REVIEW because omission risk was detected
+
+---
+
+### Omission Handling
+
+Omission is treated in graded levels:
+
+- none → no impact
+- weak → REVIEW
+- strong → FAIL (unless adjusted)
+
+eval uses omissionStrength, not just boolean flags.
+
+---
+
+### MIG-aware Adjustment
+
+MIG type affects final interpretation:
+
+- add-only:
+  - FAIL → downgraded to REVIEW
+  - reason added: [MIG] add-only kept REVIEW ...
+
+This ensures intended feature additions are not rejected.
+
+---
+
+### Final Decision
+
+Human always makes the final decision:
+
+- PASS → safe to promote
+- REVIEW → promote if intended
+- FAIL → fix unless intentional change
+
+---
+
+## Human-in-the-loop Model
+
+All decisions are ultimately made by a human.
+
+The system provides:
+
+- evidence (compare)
+- interpretation (eval)
+- visibility (summary)
+
+Human decides:
+
+- accept (promote baseline)
+- reject (revise prompt)
+
+---
+
+## Baseline Strategy (Phase 13)
+
+Baseline is not just a comparison target.
+
+It is:
+
+→ a record of human-approved expected output
+
+---
+
+### Baseline Metadata
+
+Each baseline includes:
+
+- baselineRunId
+- previousBaselineRunId
+- approvedAt
+- approvedReason
+- approvedBy
+- baselineContext (MIG info)
+
+Example:
+
+{
+  "baselineRunId": "...",
+  "approvedReason": "Accepted add-only MIG behavior after human review",
+  "baselineContext": {
+    "migName": "0001-add-comment",
+    "migType": "add-only"
+  }
+}
+
+---
+
+### Promote Flow
+
+run → compare → eval → human review → promote
+
+Promote requires human intent:
+
+./scripts/promote-baseline.ps1 \
+  -RunId RUN_... \
+  -Reason "..."
+
+---
+
+### Key Principle
+
+Baseline represents:
+
+→ "what we intentionally accept as correct"
+
+NOT:
+
+→ "what happened last time"
+
+---
+
 ## 🧠 Development Model
 
 Prompt changes should be introduced via MIG (prompt migrations).
