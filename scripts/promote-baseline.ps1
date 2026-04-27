@@ -3,6 +3,9 @@ param(
     [string]$RunId,
 
     [Parameter(Mandatory = $false)]
+    [string]$Reason = "",
+
+    [Parameter(Mandatory = $false)]
     [string]$ApprovedBy = "unknown",
 
     [Parameter(Mandatory = $false)]
@@ -113,11 +116,18 @@ if (-not [string]::IsNullOrWhiteSpace($previousBaselineRunId)) {
     $storedPreviousBaselineRunId = $previousBaselineRunId
 }
 
+$approvedReason = $Reason
+
+if ([string]::IsNullOrWhiteSpace($approvedReason)) {
+    $approvedReason = "unspecified"
+}
+
 $baseline = [ordered]@{
     caseId                = $caseId
     baselineRunId         = $RunId
     previousBaselineRunId = $storedPreviousBaselineRunId
-    approvedAt            = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssK")
+    approvedAt            = (Get-Date).ToString("s")
+    approvedReason        = $approvedReason
     approvedBy            = $ApprovedBy
     status                = "active"
     notes                 = $Notes
