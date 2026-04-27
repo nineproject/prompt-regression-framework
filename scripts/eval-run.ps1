@@ -88,6 +88,30 @@ function Add-UniqueItem {
     }
 }
 
+function Add-EvalReason {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ref]$List,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Category,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Message
+    )
+
+    $normalizedCategory = $Category.Trim().ToUpperInvariant()
+    $text = "[$normalizedCategory] $Message"
+
+    if ($null -eq $List.Value) {
+        $List.Value = @()
+    }
+
+    if (-not (@($List.Value) -contains $text)) {
+        $List.Value = @($List.Value) + $text
+    }
+}
+
 function Get-VerdictRank {
     param(
         [string]$Verdict
@@ -556,15 +580,15 @@ function Apply-MigTypeAwareVerdictAdjustment {
             }
             elseif ($RecommendedVerdict -eq "REVIEW") {
                 if ($PossibleOmissionDetected) {
-                    Add-UniqueItem $Reasons "MIG type add-only kept REVIEW because omission risk was detected"
+                    Add-EvalReason -List ([ref]$reasons) -Category "MIG" -Message "add-only kept REVIEW because omission risk was detected"
                     Add-UniqueItem $ReviewFocus "check whether existing behavior or required information was removed"
                 }
                 elseif (-not $FormatMatch) {
-                    Add-UniqueItem $Reasons "MIG type add-only kept REVIEW because output format changed"
+                    Add-EvalReason -List ([ref]$reasons) -Category "MIG" -Message "add-only kept REVIEW because output format changed"
                     Add-UniqueItem $ReviewFocus "check whether output format change is intentional and backward compatible"
                 }
                 else {
-                    Add-UniqueItem $Reasons "MIG type add-only kept REVIEW for human validation of added behavior"
+                    Add-EvalReason -List ([ref]$reasons) -Category "MIG" -Message "add-only kept REVIEW for human validation of added behavior"
                     Add-UniqueItem $ReviewFocus "check whether added behavior is intentional and backward compatible"
                 }
             }
@@ -862,18 +886,18 @@ $recommendedVerdict = "PASS"
 if ($omissionStrength -eq 'strong') {
     $recommendedVerdict = 'FAIL'
 
-    Add-UniqueItem -List ([ref]$reasons) -Value 'strong omission risk detected'
+    Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "strong omission risk detected"
 
     if ($isStrongSummaryOmission) {
-        Add-UniqueItem -List ([ref]$reasons) -Value 'possible omission detected (summary-based)'
-        Add-UniqueItem -List ([ref]$reasons) -Value 'high missing token ratio in summary'
+        Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected (summary-based)"
+        Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "high missing token ratio in summary"
     }
 
     if ($isLowDrift) {
-        Add-UniqueItem -List ([ref]$reasons) -Value 'low-drift policy escalated omission risk'
+        Add-EvalReason -List ([ref]$reasons) -Category "POLICY" -Message "low-drift policy escalated omission risk"
     }
     elseif ($isHighPriority) {
-        Add-UniqueItem -List ([ref]$reasons) -Value 'high-priority case escalated omission risk'
+        Add-EvalReason -List ([ref]$reasons) -Category "POLICY" -Message "high-priority case escalated omission risk"
     }
 
     Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether critical summary content was dropped'
@@ -884,30 +908,30 @@ elseif ($omissionStrength -eq 'weak') {
         $recommendedVerdict = 'REVIEW'
     }
 
-    Add-UniqueItem -List ([ref]$reasons) -Value 'weak omission risk detected'
+    Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "weak omission risk detected"
 
     if ($isLooseLineOnlyOmission) {
-        Add-UniqueItem -List ([ref]$reasons) -Value 'possible omission detected (line-based, loose text case)'
-        Add-UniqueItem -List ([ref]$reasons) -Value 'summary omission not confirmed'
+        Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected (line-based, loose text case)"
+        Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "summary omission not confirmed"
 
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether meaning was preserved despite line compression'
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether key points were retained after rephrasing'
     }
     elseif ($isPartialSummaryOmission) {
-        Add-UniqueItem -List ([ref]$reasons) -Value 'possible omission detected (summary-based)'
-        Add-UniqueItem -List ([ref]$reasons) -Value 'partial summary token loss detected'
+        Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected (summary-based)"
+        Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "partial summary token loss detected"
 
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether important summary content was partially dropped'
     }
     else {
-        Add-UniqueItem -List ([ref]$reasons) -Value 'possible omission detected'
+        Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected"
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether required key information is missing'
     }
 }
 
 if (-not $formatMatch) {
     $recommendedVerdict = "FAIL"
-    Add-UniqueItem -List ([ref]$reasons) -Value "format mismatch detected"
+    Add-EvalReason -List ([ref]$reasons) -Category "FORMAT" -Message "format mismatch detected"
     Add-UniqueItem -List ([ref]$reviewFocus) -Value "check output format"
 
     if ($expectedFormat -eq "json") {
@@ -927,7 +951,7 @@ elseif (-not $normalizedDiffDetected) {
 }
 else {
     $recommendedVerdict = "REVIEW"
-    Add-UniqueItem -List ([ref]$reasons) -Value "normalized diff detected"
+    Add-EvalReason -List ([ref]$reasons) -Category "DIFF" -Message "normalized diff detected"
     Add-UniqueItem -List ([ref]$reviewFocus) -Value "check whether behavior changed materially"
 
     if ($assertionMode -eq "strict") {
@@ -949,7 +973,7 @@ else {
         }
         else {
             $recommendedVerdict = "FAIL"
-            Add-UniqueItem -List ([ref]$reasons) -Value "low-drift policy escalated normalized diff"
+            Add-EvalReason -List ([ref]$reasons) -Category "POLICY" -Message "low-drift policy escalated normalized diff"
             Add-UniqueItem -List ([ref]$reviewFocus) -Value "check whether output drift exceeds allowed tolerance"
         }
     }
@@ -967,6 +991,41 @@ $migAdjustment = Apply-MigTypeAwareVerdictAdjustment `
 
 $recommendedVerdict = $migAdjustment.Verdict
 $migAwareAdjustmentApplied = [bool]$migAdjustment.AdjustmentApplied
+
+# Final MIG-aware adjustment:
+# Keep add-only MIG changes in REVIEW when omission/diff risk exists,
+# because add-only changes may legitimately expand or restructure output.
+$hasOmissionRisk = (
+    $possibleOmissionDetected -eq $true -or
+    $omissionStrength -eq 'weak' -or
+    $omissionStrength -eq 'strong'
+)
+
+$hasDiffRisk = (
+    $normalizedDiffDetected -eq $true -or
+    $rawDiffDetected -eq $true -or
+    $formatMatch -eq $false
+)
+
+if ($migType -eq 'add-only' -and ($hasOmissionRisk -or $hasDiffRisk)) {
+    if ($recommendedVerdict -eq 'FAIL') {
+        $recommendedVerdict = 'REVIEW'
+    }
+
+    if ($hasOmissionRisk) {
+        Add-EvalReason -List ([ref]$reasons) -Category "MIG" -Message "add-only kept REVIEW because omission risk was detected"
+    }
+    elseif ($formatMatch -eq $false) {
+        Add-EvalReason -List ([ref]$reasons) -Category "MIG" -Message "add-only kept REVIEW because output format changed"
+    }
+    else {
+        Add-EvalReason -List ([ref]$reasons) -Category "MIG" -Message "add-only kept REVIEW for human validation of added behavior"
+    }
+
+    Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether existing behavior or required information was removed'
+
+    $migAwareAdjustmentApplied = $true
+}
 
 $reasons = @($reasons | Select-Object -Unique)
 $reviewFocus = @($reviewFocus | Select-Object -Unique)
