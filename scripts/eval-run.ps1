@@ -738,6 +738,16 @@ if ($compareStatus -ne "OK") {
     return
 }
 
+$omissionStrength = "none"
+
+if ($null -ne $compare.omissionStrength -and $compare.omissionStrength -ne "") {
+    $omissionStrength = [string]$compare.omissionStrength
+}
+elseif ($compare.possibleOmissionDetected -eq $true) {
+    # backward compatibility for compare.json without omissionStrength
+    $omissionStrength = "weak"
+}
+
 $possibleOmissionDetected = Get-BoolOrDefault `
     -Object $compare `
     -PropertyName "possibleOmissionDetected" `
@@ -846,62 +856,50 @@ $shouldModerateToReviewForMig = Test-ShouldModerateToReviewForMig -Manifest $man
 $recommendedVerdict = "PASS"
 
 # Omission interpretation:
-# compare provides evidence, eval interprets severity based on policy and summary loss strength.
-if ($possibleOmissionDetected) {
+# compare provides omissionStrength as evidence, eval interprets it into verdict.
+# Backward compatibility:
+# if omissionStrength does not exist, possibleOmissionDetected=true is treated as weak.
+if ($omissionStrength -eq 'strong') {
+    $recommendedVerdict = 'FAIL'
 
-    # Strong summary omission:
-    # summary-based omission confirmed, large token loss, and strict policy context.
+    Add-UniqueItem -List ([ref]$reasons) -Value 'strong omission risk detected'
+
     if ($isStrongSummaryOmission) {
-        $recommendedVerdict = 'FAIL'
-
         Add-UniqueItem -List ([ref]$reasons) -Value 'possible omission detected (summary-based)'
         Add-UniqueItem -List ([ref]$reasons) -Value 'high missing token ratio in summary'
-
-        if ($isLowDrift) {
-            Add-UniqueItem -List ([ref]$reasons) -Value 'low-drift policy escalated omission risk'
-        }
-        elseif ($isHighPriority) {
-            Add-UniqueItem -List ([ref]$reasons) -Value 'high-priority case escalated omission risk'
-        }
-
-        Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether critical summary content was dropped'
-        Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether required key information is missing'
     }
 
-    # Loose text line-based suspicion:
-    # keep as REVIEW when summary-based omission is not confirmed.
-    elseif ($isLooseLineOnlyOmission) {
-        if ($recommendedVerdict -ne 'FAIL') {
-            $recommendedVerdict = 'REVIEW'
-        }
+    if ($isLowDrift) {
+        Add-UniqueItem -List ([ref]$reasons) -Value 'low-drift policy escalated omission risk'
+    }
+    elseif ($isHighPriority) {
+        Add-UniqueItem -List ([ref]$reasons) -Value 'high-priority case escalated omission risk'
+    }
 
+    Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether critical summary content was dropped'
+    Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether required key information is missing'
+}
+elseif ($omissionStrength -eq 'weak') {
+    if ($recommendedVerdict -ne 'FAIL') {
+        $recommendedVerdict = 'REVIEW'
+    }
+
+    Add-UniqueItem -List ([ref]$reasons) -Value 'weak omission risk detected'
+
+    if ($isLooseLineOnlyOmission) {
         Add-UniqueItem -List ([ref]$reasons) -Value 'possible omission detected (line-based, loose text case)'
         Add-UniqueItem -List ([ref]$reasons) -Value 'summary omission not confirmed'
 
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether meaning was preserved despite line compression'
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether key points were retained after rephrasing'
     }
-
-    # Partial summary omission:
-    # summary-based signal exists, but not strong enough for strong-omission escalation.
     elseif ($isPartialSummaryOmission) {
-        if ($recommendedVerdict -ne 'FAIL') {
-            $recommendedVerdict = 'REVIEW'
-        }
-
         Add-UniqueItem -List ([ref]$reasons) -Value 'possible omission detected (summary-based)'
         Add-UniqueItem -List ([ref]$reasons) -Value 'partial summary token loss detected'
 
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether important summary content was partially dropped'
     }
-
-    # Fallback omission handling:
-    # omission evidence exists, but does not match a more specific interpretation rule.
     else {
-        if ($recommendedVerdict -ne 'FAIL') {
-            $recommendedVerdict = 'REVIEW'
-        }
-
         Add-UniqueItem -List ([ref]$reasons) -Value 'possible omission detected'
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether required key information is missing'
     }
@@ -985,6 +983,7 @@ $eval = [ordered]@{
         rawDiffDetected = $rawDiffDetected
         normalizedDiffDetected = $normalizedDiffDetected
         possibleOmissionDetected = $possibleOmissionDetected
+        omissionStrength = $omissionStrength
         migName = $migName
         migType = $migType
         migTypeSource = $migTypeSource

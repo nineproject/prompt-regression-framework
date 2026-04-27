@@ -607,6 +607,49 @@ function Get-ItemCountSafe {
     return $count
 }
 
+function Get-OmissionStrength {
+    param(
+        [object]$DiffSignals,
+        [object]$SummarySignals,
+        [bool]$PossibleOmissionDetected
+    )
+
+    $missingTokenRatio = 0.0
+    $sharedLineRatio = 1.0
+    $missingLineCount = 0
+
+    if ($null -ne $SummarySignals -and $null -ne $SummarySignals.missingTokenRatio) {
+        $missingTokenRatio = [double]$SummarySignals.missingTokenRatio
+    }
+
+    if ($null -ne $DiffSignals -and $null -ne $DiffSignals.sharedLineRatio) {
+        $sharedLineRatio = [double]$DiffSignals.sharedLineRatio
+    }
+
+    if ($null -ne $DiffSignals -and $null -ne $DiffSignals.missingNormalizedLines) {
+        $missingLineCount = @($DiffSignals.missingNormalizedLines).Count
+    }
+
+    if (
+        $missingTokenRatio -ge 0.35 -or
+        $sharedLineRatio -le 0.50 -or
+        $missingLineCount -ge 3
+    ) {
+        return "strong"
+    }
+
+    if (
+        $PossibleOmissionDetected -or
+        $missingTokenRatio -ge 0.15 -or
+        $sharedLineRatio -le 0.75 -or
+        $missingLineCount -ge 1
+    ) {
+        return "weak"
+    }
+
+    return "none"
+}
+
 function New-NotComparableCompareResult {
     param(
         [Parameter(Mandatory = $true)]
@@ -729,6 +772,9 @@ function New-CompareResult {
         $PossibleOmissionDetected = $null,
 
         [AllowNull()]
+        $OmissionStrength = $null,
+
+        [AllowNull()]
         $DiffSignals = $null,
 
         [AllowNull()]
@@ -750,6 +796,7 @@ function New-CompareResult {
         severityHint             = $SeverityHint
         casePolicy               = $CasePolicy
         possibleOmissionDetected = $PossibleOmissionDetected
+        omissionStrength         = $OmissionStrength
         diffSignals              = $DiffSignals
         omissionSignals          = $OmissionSignals
         summarySignals           = $SummarySignals
@@ -920,6 +967,11 @@ $omissionSignals = [pscustomobject]@{
     bySummary = $possibleOmissionBySummary
 }
 
+$omissionStrength = Get-OmissionStrength `
+    -DiffSignals $diffSignals `
+    -SummarySignals $summaryOmissionSignals `
+    -PossibleOmissionDetected $possibleOmissionDetected
+
 $compare = New-CompareResult `
     -CaseId $caseId `
     -BaselineRunId $baselineRunId `
@@ -932,6 +984,7 @@ $compare = New-CompareResult `
     -SeverityHint $severityHint `
     -CasePolicy $casePolicy `
     -PossibleOmissionDetected $possibleOmissionDetected `
+    -OmissionStrength $omissionStrength `
     -DiffSignals $diffSignals `
     -OmissionSignals $omissionSignals `
     -SummarySignals $summaryOmissionSignals
