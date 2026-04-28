@@ -908,7 +908,9 @@ elseif ($omissionStrength -eq 'weak') {
         $recommendedVerdict = 'REVIEW'
     }
 
-    Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "weak omission risk detected"
+    if ($possibleOmissionDetected -eq $true -and $omissionStrength -eq "weak") {
+        Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "weak omission risk detected"
+    }
 
     if ($isLooseLineOnlyOmission) {
         Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected (line-based, loose text case)"
