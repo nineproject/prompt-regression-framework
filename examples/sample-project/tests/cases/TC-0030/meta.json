@@ -1,0 +1,7 @@
+﻿{
+  "expectedFormat": "markdown",
+  "assertionMode": "normal",
+  "priority": "high",
+  "changePolicy": "low-drift",
+  "tags": ["implementation", "codegen", "nextjs", "prisma", "posts"]
+}

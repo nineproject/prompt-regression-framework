@@ -1,0 +1,5 @@
+{
+  "id": "TS-0010",
+  "title": "Specification generation flow",
+  "caseIds": ["TC-0011", "TC-0020"]
+}

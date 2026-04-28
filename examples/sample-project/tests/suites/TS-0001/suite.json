@@ -1,0 +1,5 @@
+{
+  "id": "TS-0001",
+  "title": "Smoke suite",
+  "caseIds": ["TC-0010"]
+}

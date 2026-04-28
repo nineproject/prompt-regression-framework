@@ -1,0 +1,7 @@
+﻿{
+  "expectedFormat": "text",
+  "assertionMode": "normal",
+  "priority": "normal",
+  "changePolicy": "normal",
+  "tags": ["spec", "design", "mvp", "board", "example"]
+}

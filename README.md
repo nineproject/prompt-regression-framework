@@ -4,6 +4,8 @@
 
 > Test prompts like code. Catch regressions before they reach production.
 
+This framework supports both specification generation and implementation generation workflows.
+
 ---
 
 ## 🚀 Overview
@@ -412,10 +414,32 @@ This includes:
 * BASE (prompt rules)
 * SPEC_BASE (detailed specification)
 * SPEC_SUMMARY (LLM-optimized specification)
-* Test cases and suite
+* Test cases and suites
 
 If you want to quickly understand how the framework works,
 start from the sample project.
 
 If you want to use it for your own project,
 create your own BASE and SPEC instead of modifying the sample.
+
+---
+
+### Example Flow
+
+1. Generate system design (TC-0011)
+2. Define API specification (TC-0020)
+3. Generate implementation (TC-0030)
+
+---
+
+### How to run
+
+Start with the smoke test, then follow the full flow:
+
+```bash
+./scripts/run-suite.ps1 -SuiteId TS-0001   # smoke
+./scripts/run-suite.ps1 -SuiteId TS-0010   # spec generation
+./scripts/run-suite.ps1 -SuiteId TS-0020   # implementation generation
+```
+
+Sample cases are provided in English for public use, while local development can use any language.

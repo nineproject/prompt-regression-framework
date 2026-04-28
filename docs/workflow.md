@@ -336,3 +336,73 @@ The first run acts as a **baseline candidate**.
 - Evolve via MIG  
 - Validate with compare/eval  
 - Decide as human  
+
+---
+
+## Case Types (Specification vs Implementation)
+
+This framework supports multiple types of cases.
+
+### Specification Cases
+
+Purpose:
+- Define "what should be built"
+
+Examples:
+- API specifications
+- Data models
+- System design
+
+Characteristics:
+- Output is structured (JSON / markdown)
+- Used as baseline for implementation
+- Often human-reviewed (REVIEW is common)
+
+Tags:
+- spec
+- api
+- design
+
+---
+
+### Implementation Cases
+
+Purpose:
+- Generate "how to build it"
+
+Examples:
+- Next.js API route
+- Prisma schema
+- Service layer code
+
+Characteristics:
+- Output is code
+- Must follow specification cases (e.g., TC-0020)
+- Used for assisted development
+- Prefer smaller diffs and stability
+
+Tags:
+- implementation
+- codegen
+- nextjs
+- prisma
+
+---
+
+### Recommended Workflow
+
+1. Generate specification (spec case)
+2. Review and promote baseline
+3. Generate implementation (implementation case)
+4. Validate manually or via additional cases
+
+---
+
+### Key Principle
+
+Specification defines the contract.
+Implementation must follow the contract.
+
+The framework ensures:
+- specifications are stable
+- implementations do not drift

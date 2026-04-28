@@ -1,0 +1,7 @@
+﻿{
+  "expectedFormat": "json",
+  "assertionMode": "normal",
+  "priority": "high",
+  "changePolicy": "low-drift",
+  "tags": ["api", "posts", "implementation", "json"]
+}
