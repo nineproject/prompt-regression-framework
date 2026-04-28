@@ -924,7 +924,7 @@ elseif ($omissionStrength -eq 'weak') {
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether important summary content was partially dropped'
     }
     else {
-        Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected"
+        # Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected"
         Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether required key information is missing'
     }
 }

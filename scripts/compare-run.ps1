@@ -611,33 +611,78 @@ function Get-OmissionStrength {
     param(
         [object]$DiffSignals,
         [object]$SummarySignals,
-        [bool]$PossibleOmissionDetected
+        [bool]$PossibleOmissionDetected,
+        [bool]$FormatMatch = $true
     )
 
     $missingTokenRatio = 0.0
     $sharedLineRatio = 1.0
     $missingLineCount = 0
+    $lengthRatio = 1.0
 
-    if ($null -ne $SummarySignals -and $null -ne $SummarySignals.missingTokenRatio) {
-        $missingTokenRatio = [double]$SummarySignals.missingTokenRatio
+    $hasSummarySignal = $false
+
+    if ($null -ne $SummarySignals) {
+        $baselineSummaryExists = $false
+        $candidateSummaryExists = $false
+
+        if ($null -ne $SummarySignals.baselineSummaryExists) {
+            $baselineSummaryExists = [bool]$SummarySignals.baselineSummaryExists
+        }
+
+        if ($null -ne $SummarySignals.candidateSummaryExists) {
+            $candidateSummaryExists = [bool]$SummarySignals.candidateSummaryExists
+        }
+
+        $hasSummarySignal = ($baselineSummaryExists -or $candidateSummaryExists)
+
+        if ($null -ne $SummarySignals.missingTokenRatio) {
+            $missingTokenRatio = [double]$SummarySignals.missingTokenRatio
+        }
     }
 
-    if ($null -ne $DiffSignals -and $null -ne $DiffSignals.sharedLineRatio) {
-        $sharedLineRatio = [double]$DiffSignals.sharedLineRatio
+    if ($null -ne $DiffSignals) {
+        if ($null -ne $DiffSignals.sharedLineRatio) {
+            $sharedLineRatio = [double]$DiffSignals.sharedLineRatio
+        }
+
+        if ($null -ne $DiffSignals.missingNormalizedLines) {
+            $missingLineCount = @($DiffSignals.missingNormalizedLines).Count
+        }
+
+        if ($null -ne $DiffSignals.lengthRatio) {
+            $lengthRatio = [double]$DiffSignals.lengthRatio
+        }
     }
 
-    if ($null -ne $DiffSignals -and $null -ne $DiffSignals.missingNormalizedLines) {
-        $missingLineCount = @($DiffSignals.missingNormalizedLines).Count
-    }
+    $lineOnlyOmission = (
+        -not $hasSummarySignal -and
+        $missingTokenRatio -eq 0 -and
+        $FormatMatch -eq $true
+    )
 
-    if (
-        $missingTokenRatio -ge 0.35 -or
-        $sharedLineRatio -le 0.50 -or
-        $missingLineCount -ge 3
-    ) {
+    $candidateNotShorter = ($lengthRatio -ge 0.90)
+
+    # Strong omission:
+    # Prefer summary/token evidence for strong classification.
+    if ($missingTokenRatio -ge 0.35) {
         return "strong"
     }
 
+    # Line-only diffs can be noisy for generated text.
+    # If the candidate is not shorter and format still matches,
+    # do not escalate to strong only because lines changed.
+    if (-not ($lineOnlyOmission -and $candidateNotShorter)) {
+        if (
+            $sharedLineRatio -le 0.50 -or
+            $missingLineCount -ge 3
+        ) {
+            return "strong"
+        }
+    }
+
+    # Weak omission:
+    # Preserve existing caution, but avoid over-escalation.
     if (
         $PossibleOmissionDetected -or
         $missingTokenRatio -ge 0.15 -or
@@ -970,7 +1015,8 @@ $omissionSignals = [pscustomobject]@{
 $omissionStrength = Get-OmissionStrength `
     -DiffSignals $diffSignals `
     -SummarySignals $summaryOmissionSignals `
-    -PossibleOmissionDetected $possibleOmissionDetected
+    -PossibleOmissionDetected $possibleOmissionDetected `
+    -FormatMatch $formatMatch
 
 $compare = New-CompareResult `
     -CaseId $caseId `
