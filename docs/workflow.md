@@ -406,3 +406,80 @@ Implementation must follow the contract.
 The framework ensures:
 - specifications are stable
 - implementations do not drift
+
+---
+
+## Manual Translation Workflow
+
+This framework supports multi-language case development.
+
+You can write cases in your preferred language (e.g., Japanese) and manually create English versions for sharing.
+
+---
+
+### Purpose
+
+- Allow flexible local development in any language
+- Provide English versions for public repositories
+- Keep structure and behavior consistent across languages
+
+---
+
+### File Structure
+
+Each case may have two versions:
+
+    tests/cases/TC-XXXX/
+      case.md        # source (e.g., Japanese)
+      case.en.md     # translated version (English)
+
+---
+
+### Recommended Workflow
+
+1. Write the case in your preferred language
+
+    tests/cases/TC-0020/case.md
+
+2. Run the translation helper script
+
+    ./scripts/translate-case.ps1 -CaseId TC-0020
+
+3. Copy the generated prompt into ChatGPT (or another LLM)
+
+4. Paste the translated result into:
+
+    tests/cases/TC-0020/case.en.md
+
+---
+
+### Translation Rules
+
+When translating, follow these rules:
+
+- Keep the same structure (headings, sections)
+- Do not change meaning
+- Do not add or remove requirements
+- Preserve code blocks exactly
+- Keep JSON structure unchanged
+- Preserve file paths and commands
+
+---
+
+### Notes
+
+- The translation step is intentionally manual to avoid API dependency
+- Automated translation via API can be added later if needed
+- Both versions should remain aligned semantically
+
+---
+
+### Optional: Language Tags
+
+You may optionally add language tags in meta.json:
+
+    "tags": ["spec", "api", "jp"]
+
+English version:
+
+    "tags": ["spec", "api", "en"]

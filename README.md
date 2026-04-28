@@ -443,3 +443,11 @@ Start with the smoke test, then follow the full flow:
 ```
 
 Sample cases are provided in English for public use, while local development can use any language.
+
+---
+
+## Multi-language support
+
+Cases can be written in any language locally.
+
+For public sharing, English versions can be generated using the translation workflow.
