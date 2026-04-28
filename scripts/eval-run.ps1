@@ -900,10 +900,10 @@ if ($omissionStrength -eq 'strong') {
         Add-EvalReason -List ([ref]$reasons) -Category "POLICY" -Message "high-priority case escalated omission risk"
     }
 
-    Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether critical summary content was dropped'
-    Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether required key information is missing'
+    Add-UniqueItem -List $reviewFocus -Item 'check whether critical summary content was dropped'
+    Add-UniqueItem -List $reviewFocus -Item 'check whether required key information is missing'
 }
-elseif ($omissionStrength -eq 'weak') {
+elseif ($possibleOmissionDetected -eq $true -and $omissionStrength -eq 'weak') {
     if ($recommendedVerdict -ne 'FAIL') {
         $recommendedVerdict = 'REVIEW'
     }
@@ -916,49 +916,49 @@ elseif ($omissionStrength -eq 'weak') {
         Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected (line-based, loose text case)"
         Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "summary omission not confirmed"
 
-        Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether meaning was preserved despite line compression'
-        Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether key points were retained after rephrasing'
+        Add-UniqueItem -List $reviewFocus -Item 'check whether meaning was preserved despite line compression'
+        Add-UniqueItem -List $reviewFocus -Item 'check whether key points were retained after rephrasing'
     }
     elseif ($isPartialSummaryOmission) {
         Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected (summary-based)"
         Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "partial summary token loss detected"
 
-        Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether important summary content was partially dropped'
+        Add-UniqueItem -List $reviewFocus -Item 'check whether important summary content was partially dropped'
     }
     else {
         # Add-EvalReason -List ([ref]$reasons) -Category "OMISSION" -Message "possible omission detected"
-        Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether required key information is missing'
+        Add-UniqueItem -List $reviewFocus -Item 'check whether required key information is missing'
     }
 }
 
 if (-not $formatMatch) {
     $recommendedVerdict = "FAIL"
     Add-EvalReason -List ([ref]$reasons) -Category "FORMAT" -Message "format mismatch detected"
-    Add-UniqueItem -List ([ref]$reviewFocus) -Value "check output format"
+    Add-UniqueItem -List $reviewFocus -Item "check output format"
 
     if ($expectedFormat -eq "json") {
-        Add-UniqueItem -List ([ref]$reviewFocus) -Value "check whether json contract is preserved"
+        Add-UniqueItem -List $reviewFocus -Item "check whether json contract is preserved"
     }
 }
 elseif (-not $normalizedDiffDetected) {
     $recommendedVerdict = "PASS"
 
     if ($rawDiffDetected) {
-        Add-UniqueItem -List ([ref]$reasons) -Value "only superficial diff detected"
-        Add-UniqueItem -List ([ref]$reviewFocus) -Value "confirm formatting-only difference is acceptable"
+        Add-UniqueItem -List $reasons -Item "only superficial diff detected"
+        Add-UniqueItem -List $reviewFocus -Item "confirm formatting-only difference is acceptable"
     }
     else {
-        Add-UniqueItem -List ([ref]$reasons) -Value "no meaningful diff detected"
+        Add-UniqueItem -List $reasons -Item "no meaningful diff detected"
     }
 }
 else {
     $recommendedVerdict = "REVIEW"
     Add-EvalReason -List ([ref]$reasons) -Category "DIFF" -Message "normalized diff detected"
-    Add-UniqueItem -List ([ref]$reviewFocus) -Value "check whether behavior changed materially"
+    Add-UniqueItem -List $reviewFocus -Item "check whether behavior changed materially"
 
     if ($assertionMode -eq "strict") {
         $recommendedVerdict = "FAIL"
-        Add-UniqueItem -List ([ref]$reasons) -Value "strict assertion mode requires exact stability"
+        Add-UniqueItem -List $reasons -Item "strict assertion mode requires exact stability"
     }
 
     if ($changePolicy -eq "low-drift") {
@@ -966,17 +966,27 @@ else {
         if ($shouldModerateToReviewForMig -and $recommendedVerdict -ne "FAIL") {
             $recommendedVerdict = "REVIEW"
 
-            Add-UniqueItem -List ([ref]$reasons) -Value "MIG-applied run: detected changes may reflect intended spec evolution"
-            Add-UniqueItem -List ([ref]$reasons) -Value "REVIEW preferred over immediate FAIL under MIG context"
+            Add-UniqueItem -List $reasons -Item "MIG-applied run: detected changes may reflect intended spec evolution"
+            Add-UniqueItem -List $reasons -Item "REVIEW preferred over immediate FAIL under MIG context"
 
-            Add-UniqueItem -List ([ref]$reviewFocus) -Value "verify that the MIG-intended additions are correct"
-            Add-UniqueItem -List ([ref]$reviewFocus) -Value "confirm that existing important behavior was not unintentionally broken"
-            Add-UniqueItem -List ([ref]$reviewFocus) -Value "review whether added changes match the intended migration scope"
+            Add-UniqueItem -List $reviewFocus -Item "verify that the MIG-intended additions are correct"
+            Add-UniqueItem -List $reviewFocus -Item "confirm that existing important behavior was not unintentionally broken"
+            Add-UniqueItem -List $reviewFocus -Item "review whether added changes match the intended migration scope"
+        }
+        elseif (
+            $normalizedDiffDetected -eq $true -and
+            $formatMatch -eq $true -and
+            $possibleOmissionDetected -ne $true -and
+            $assertionMode -eq "normal"
+        ) {
+            $recommendedVerdict = "REVIEW"
+            Add-EvalReason -List ([ref]$reasons) -Category "POLICY" -Message "normal assertion mode routes non-omission normalized diff to review"
+            Add-UniqueItem -List $reviewFocus -Item "confirm whether the normalized diff is an acceptable wording/specification change"
         }
         else {
             $recommendedVerdict = "FAIL"
             Add-EvalReason -List ([ref]$reasons) -Category "POLICY" -Message "low-drift policy escalated normalized diff"
-            Add-UniqueItem -List ([ref]$reviewFocus) -Value "check whether output drift exceeds allowed tolerance"
+            Add-UniqueItem -List $reviewFocus -Item "check whether output drift exceeds allowed tolerance"
         }
     }
 }
@@ -1024,7 +1034,7 @@ if ($migType -eq 'add-only' -and ($hasOmissionRisk -or $hasDiffRisk)) {
         Add-EvalReason -List ([ref]$reasons) -Category "MIG" -Message "add-only kept REVIEW for human validation of added behavior"
     }
 
-    Add-UniqueItem -List ([ref]$reviewFocus) -Value 'check whether existing behavior or required information was removed'
+    Add-UniqueItem -List $reviewFocus -Item 'check whether existing behavior or required information was removed'
 
     $migAwareAdjustmentApplied = $true
 }
