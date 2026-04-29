@@ -1,37 +1,70 @@
-﻿# TC-0011: Design a Bulletin Board MVP with User Accounts
+﻿# TC-0011: ユーザーアカウント付き掲示板 MVP 設計
 
-## Objective
+## 目的
 
-Design a simple bulletin board system with user authentication.
+ユーザーアカウント機能を含む掲示板システムの最小実用製品（MVP）を設計する。
 
-This case focuses on high-level system design and should not be overly strict in format.
-
----
-
-## Requirements
-
-### Authentication
-- Users can register with username and password
-- Users can log in and log out
-- Passwords must be stored securely (hashed)
-
-### Posts
-- Unauthenticated users can view posts
-- Authenticated users can create posts
-- Only the author can edit or delete their posts
+実装計画に利用できるよう、明確で構造化された仕様を出力することを目的とする。
 
 ---
 
-## Output Expectations
+## 要件
 
-- Provide a structured system design
-- Include data models, API design, and basic architecture
-- Use clear headings and sections
-- Markdown format is acceptable
+システムは以下のコア機能を含むこと。
+
+### 1. ユーザーアカウント
+- ユーザー登録（ユーザー名 + パスワード）
+- ログイン / ログアウト
+- 基本的な認証処理
+
+### 2. 投稿機能
+- 認証済みユーザーは投稿を作成できる
+- 投稿は以下の情報を持つ：
+  - タイトル
+  - 本文
+  - 投稿者
+  - 作成日時（createdAt）
+
+### 3. 閲覧機能
+- 誰でも投稿一覧を閲覧できる
+- 誰でも投稿詳細を閲覧できる
 
 ---
 
-## Constraints
+## 出力要件
 
-- Keep the design simple (MVP scope)
-- Do not include advanced features (notifications, roles, etc.)
+出力は必ず以下の構造に従うこと。
+
+### 1. 概要
+システムの高レベル説明
+
+### 2. 機能要件
+システムの振る舞いを列挙
+
+### 3. データモデル
+エンティティとフィールド定義
+
+### 4. API設計
+以下を含むエンドポイント一覧：
+- メソッド
+- パス
+- 説明
+
+### 5. 非機能要件
+任意だが記載推奨
+
+---
+
+## 制約
+
+- MVPとしてシンプルに保つこと（過剰設計しない）
+- 高度な機能は含めない（例：いいね、コメント、通知など）
+- 簡潔だが必要十分な内容とすること
+
+---
+
+## 期待特性
+
+- 構造化された出力であること
+- 必須セクションが欠けていないこと
+- 用語が一貫していること
